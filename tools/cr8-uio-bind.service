@@ -1,0 +1,8 @@
+[Unit]
+Description=Bind CR8 MHU receiver nodes to UIO for rpmsg demo
+After=multi-user.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cr8-uio-bind.sh
+[Install]
+WantedBy=multi-user.target
