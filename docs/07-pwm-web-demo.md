@@ -88,11 +88,17 @@ r8_bench pwmd [json-path]        # default /run/r8pwm.json
   stdin EOF or SIGINT → full release_channel teardown
 ```
 
-Try it without the web layer:
+Try it without the web layer — **stop the web service first** (Ctrl-C, or
+`sudo kill -INT <serve_pwm.py pid>` and wait a few seconds for its daemon to
+tear down). The channel takes exactly one client: a second `pwmd` started while
+the web backend holds it tramples the shared vring and knocks the R8 back to
+its reconnect state. Then, in `~/r8_bench`:
 
 ```sh
 printf "6 a 5000 750\n" | sudo ./r8_bench pwmd && cat /run/r8pwm.json
 ```
+
+(Restore the demo afterwards with `sudo ~/r8web/start-pwm-demo.sh`.)
 
 Or against the running backend:
 

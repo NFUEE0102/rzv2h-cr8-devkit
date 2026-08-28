@@ -13,7 +13,7 @@ talk to Linux — then build your own firmware for it.
 
 ## Step 1 — Flash the SD card
 
-Download `evk-devkit-16gb-v1.0.1.img.xz` (or newer) from the
+Download `evk-devkit-16gb-v1.0.2.img.xz` (or newer) from the
 [Releases page](https://github.com/NFUEE0102/rzv2h-cr8-devkit/releases).
 Etcher flashes the `.img.xz` directly — select the file, select the card, Flash.
 (Or: `xz -dc evk-devkit-16gb-*.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync`.)
@@ -42,11 +42,12 @@ anything to get your first result:
 | `~/r8web/bb.py` | black-box reader (R8 health, from Linux, no console needed) |
 | `/dev/uio0..9` | shared-memory + doorbell windows (appear automatically at boot) |
 
-The one thing *not* on the image is this repository's `tools/` scripts — fetch
-them once:
+Image **v1.0.2 and later also ships this repository at `~/devkit`** — nothing
+to fetch. Update it anytime with `git -C ~/devkit pull`. Only on the older
+v1.0.0/v1.0.1 images do you fetch it once:
 
 ```sh
-git clone https://github.com/NFUEE0102/rzv2h-cr8-devkit.git ~/devkit
+git clone https://github.com/NFUEE0102/rzv2h-cr8-devkit.git ~/devkit   # v1.0.0/v1.0.1 only
 ```
 
 > ⚠️ Only if you flashed the older **v1.0.0** image: its on-board `~/start-r8-sensors.sh`
@@ -67,7 +68,7 @@ possibly-stale doorbell and two handshake bytes, tells remoteproc which file in
 (`.../remoteproc1/state`). `remoteproc1` **is** the Cortex-R8; the kernel loads
 the ELF into the R8's memory and releases it from reset.
 
-You should see `R8 running (cr8_rpmsg_echo_demo.elf)`. Kernel messages about
+You should see `R8 running (cr8_demo_patched.elf)`. Kernel messages about
 "no resource table" during start are normal for this transport.
 
 ## Step 5 — Talk to it
