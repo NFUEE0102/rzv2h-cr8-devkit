@@ -89,7 +89,12 @@ sudo python3 ~/r8web/bb.py -q
 The R8 has no serial console here. Firmware built with the black box
 (`cr8_sensors.elf` has it; the echo demo does not) continuously writes its
 health — heartbeats, boot stage, crash registers — to a fixed DDR address that
-Linux can always read. `死因/fault: none` + advancing tick = alive. Full field
+Linux can always read.
+
+> Note: DDR is not cleared between firmwares. While the echo demo runs, `bb.py`
+> shows the **previous** black-box firmware's leftover data, not live state. To
+> tell live from leftover: read twice a few seconds apart — if `uptime` doesn't
+> advance, you're looking at a stale image. `死因/fault: none` + advancing tick = alive. Full field
 guide: `docs/05-blackbox.md`.
 
 Try it with the sensor firmware:
@@ -146,5 +151,6 @@ sudo python3 ~/r8web/bb.py -q
 | `bad phdr ... -22` on start | you skipped `patch-elf-phdr.py` (step 7.4) |
 | `r8_bench`: `failed to open /dev/uio*` | run it with `sudo`; check `systemctl status cr8-uio-bind` |
 | `r8_bench` hangs / no replies | stale handshake — rerun `start-cr8.sh` (it clears the doorbell + status bytes); make sure only **one** client uses the channel, and stop clients with Ctrl-C, never `kill -9` |
-| `bb.py`: `magic = 0xFFFFFFFF` | that firmware doesn't include the black box (the echo demo doesn't), or the R8 never started |
+| `bb.py`: `magic = 0xFFFFFFFF` | no black-box firmware has run since power-on (cold DDR), or the R8 never started |
+| `bb.py` shows data but `uptime` frozen | leftover from a previous black-box firmware — the current one doesn't write the box (e.g. the echo demo) |
 | `bb.py` shows a fault | read `docs/05-blackbox.md` — DFSR/DFAR and the interrupt ring buffer are all captured for you |
