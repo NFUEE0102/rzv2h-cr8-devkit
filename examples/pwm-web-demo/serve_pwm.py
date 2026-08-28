@@ -40,6 +40,9 @@ class Daemon:
         self.proc = None
         self.lock = threading.Lock()
         self.last_restart = 0.0
+        # 每通道最後一筆成功套用(鍵 "6a"/"6b"…)。頁面重載時用來恢復顯示 ——
+        # R8 是硬體,重載網頁不會改變它正在輸出的東西。
+        self.applied = {}
 
     def alive(self):
         return self.proc is not None and self.proc.poll() is None
@@ -48,11 +51,27 @@ class Daemon:
         # 舊 JSON 是上一個 daemon 的 seq 序列;新 daemon 從 1 重數,
         # 不清掉的話 send() 的「seq 前進」判斷會永遠等不到。
         JSON_PATH.unlink(missing_ok=True)
+        self._log_pos = DAEMON_LOG.stat().st_size if DAEMON_LOG.exists() else 0
         log = open(DAEMON_LOG, "ab", buffering=0)
         self.proc = subprocess.Popen(
             ["./r8_bench", "pwmd", str(JSON_PATH)],
             cwd=BENCH_DIR, stdin=subprocess.PIPE, stdout=log, stderr=log)
         print(f"pwmd daemon 啟動 pid={self.proc.pid}(log: {DAEMON_LOG})")
+
+    def wait_ready(self, timeout=15.0):
+        """等 daemon 印出就緒行(rpmsg bind 完成後才印)。log 是 append 的,
+        只在本次啟動之後的新增段找,免得被上一輪的字樣騙到。"""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                if "pwmd 常駐".encode() in DAEMON_LOG.read_bytes()[self._log_pos:]:
+                    return True
+            except OSError:
+                pass
+            if not self.alive():
+                return False
+            time.sleep(0.2)
+        return False
 
     def stop(self):
         if self.proc is None:
@@ -91,8 +110,7 @@ class Daemon:
                 self.last_restart = now
                 print("daemon 不在了,重啟一次…")
                 self.start()
-                time.sleep(2.5)              # 等 endpoint bind
-                if not self.alive():
+                if not self.wait_ready():
                     return {"ok": 0, "err": "daemon restart failed"}
             before = self._read_json()
             seq0 = before["seq"] if before else 0
@@ -106,7 +124,15 @@ class Daemon:
             while time.monotonic() < deadline:
                 cur = self._read_json()
                 if cur and cur.get("seq", 0) > seq0:
-                    return cur
+                    seq0 = cur["seq"]
+                    # 只認領參數完全相符的回報 —— stdin 有積壓時,seq 前進
+                    # 可能是「前面那筆」的回報(踩過:b 的槽存進 a 的回報)。
+                    if (cur.get("gpt") == gpt and cur.get("ch") == ch
+                            and cur.get("req_freq_hz") == freq_hz
+                            and cur.get("req_duty_permille") == duty_permille):
+                        if cur.get("ok"):
+                            self.applied[f"{gpt}{ch}"] = cur
+                        return cur
                 time.sleep(0.03)
             return {"ok": 0, "err": "timeout waiting daemon"}
 
@@ -135,7 +161,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.path = "/pwm.html"
         if self.path == "/api/status":
             last = Daemon._read_json()
-            return self._json(200, {"daemon_alive": DAEMON.alive(), "last": last})
+            return self._json(200, {"daemon_alive": DAEMON.alive(), "last": last,
+                                    "applied": DAEMON.applied})
         return super().do_GET()
 
     def do_POST(self):
@@ -175,6 +202,8 @@ def main():
     # 先綁 port 再起 daemon:port 被占時直接死在這裡,不會留下孤兒 daemon
     srv = Srv(("", PORT), Handler)
     DAEMON.start()
+    if not DAEMON.wait_ready():
+        print("⚠ daemon 15 秒內沒就緒 —— 照樣開站,指令會 timeout,查 /run/r8pwmd.log")
     print(f"PWM 示範網頁: http://<板子IP>:{PORT}/  (Ctrl-C 停止)")
     try:
         srv.serve_forever()

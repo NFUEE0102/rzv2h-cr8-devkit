@@ -975,6 +975,10 @@ int main(int argc, char **argv)
         char line[128];
         unsigned long long seq = 0;
         int consecutive_fail = 0;
+        /* poll+fgets 混用的陷阱:stdio 緩衝會一口氣吸走多行,第二行之後
+         * 躺在緩衝裡,poll 看 fd 是空的 → 卡到「下一筆」到達才被處理。
+         * 關掉 stdin 的 stdio 緩衝,fgets 逐字 read 到 \n(指令行很短,無所謂)。 */
+        setvbuf(stdin, NULL, _IONBF, 0);
         printf("pwmd 常駐:stdin 收 \"<gpt> <a|b> <freq_hz> <duty_permille>\",回報寫 %s\n",
                g_pwmd_path);
         while (!force_stop) {

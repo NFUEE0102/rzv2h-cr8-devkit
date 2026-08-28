@@ -259,11 +259,23 @@ async function pollStatus() {
   try {
     const s = await fetch("/api/status").then(x => x.json());
     $("badge").className = s.daemon_alive ? "ok" : "bad";
-  } catch { $("badge").className = "bad"; }
+    return s;
+  } catch { $("badge").className = "bad"; return null; }
 }
 setInterval(pollStatus, 3000);
-pollStatus();
-paint();
+
+/* 載入時從 server 恢復目前 GPT 的實際輸出狀態 ——
+ * R8 是硬體,重載網頁不會改變它正在輸出的東西,顯示必須跟上硬體。 */
+(async () => {
+  const s = await pollStatus();
+  const a = s?.applied?.[`${st.gpt}a`], b = s?.applied?.[`${st.gpt}b`];
+  if (a || b) {
+    st.freq  = (a || b).req_freq_hz;
+    if (a) { st.dutyA = a.req_duty_permille; report("a", a); }
+    if (b) { st.dutyB = b.req_duty_permille; report("b", b); }
+    paint(); kF.sync(); kA.sync(); kB.sync();
+  } else paint();
+})();
 </script>
 </body>
 </html>
