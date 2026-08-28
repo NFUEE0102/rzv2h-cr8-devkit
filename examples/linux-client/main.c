@@ -24,6 +24,7 @@
 #include <sched.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
+#include <poll.h>      /* pwmd:stdin 輪詢,讓 force_stop 有機會被看到 */
 
 #include <openamp/open_amp.h>
 #include <openamp/rpmsg_virtio.h>
@@ -40,6 +41,8 @@ static int         g_sns_ms    = 200;                /* 輪詢間隔,預設 5 Hz
 static const char *g_sns_path  = "/run/r8sns.json";
 static int      g_sns_n        = 1;   /* 連續讀幾次 */
 static int      g_pwm_mode     = 0;
+static int         g_pwmd_mode = 0;                  /* 常駐 PWM daemon(網頁後端) */
+static const char *g_pwmd_path = "/run/r8pwm.json";  /* 每筆指令的 R8 回報落地處 */
 static int      g_jit_mode     = 0;   /* tick 抖動量測 */
 static int      g_jit_secs     = 10;
 static int      g_jit_load     = 0;
@@ -492,6 +495,35 @@ static void sns_write_json(const sns_rsp_t *r, const char *path,
     (void) rename(tmp, path);   /* 原子替換 */
 }
 
+/* pwmd:把一筆指令與 R8 的回覆(或錯誤)寫成單行 JSON,tmp+rename 原子替換。
+ * 與 sns_write_json 相同的落地手法,讀方(serve_pwm.py)靠 seq 判斷新舊。 */
+static void pwmd_write_json(const char *path, unsigned long long seq,
+                            const pwm_cmd_t *c, const pwm_rsp_t *r, const char *err)
+{
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+    FILE *f = fopen(tmp, "w");
+    if (!f) return;
+    if (r && 0 == r->status) {
+        double af = r->period_counts ? (double)r->pclk_hz / (double)r->period_counts : 0.0;
+        double ad = r->period_counts ? 100.0 * (double)r->duty_counts / (double)r->period_counts : 0.0;
+        fprintf(f,
+            "{\"seq\":%llu,\"ok\":1,\"gpt\":%u,\"ch\":\"%c\",\"req_freq_hz\":%u,"
+            "\"req_duty_permille\":%u,\"period_counts\":%u,\"duty_counts\":%u,"
+            "\"pclk_hz\":%u,\"actual_freq_hz\":%.4f,\"actual_duty_pct\":%.4f}\n",
+            seq, c->gpt, c->use_b ? 'b' : 'a', c->freq_hz, c->duty_permille,
+            r->period_counts, r->duty_counts, r->pclk_hz, af, ad);
+    } else {
+        fprintf(f,
+            "{\"seq\":%llu,\"ok\":0,\"gpt\":%u,\"ch\":\"%c\",\"req_freq_hz\":%u,"
+            "\"req_duty_permille\":%u,\"err\":\"%s\",\"status\":%d}\n",
+            seq, c->gpt, c->use_b ? 'b' : 'a', c->freq_hz, c->duty_permille,
+            err ? err : (r ? pwm_err_str(r->status) : "?"), r ? r->status : 0);
+    }
+    fclose(f);
+    rename(tmp, path);
+}
+
 int main(int argc, char **argv)
 {
     int ret;
@@ -508,6 +540,10 @@ int main(int argc, char **argv)
         if (argc > 2) g_sns_ms = atoi(argv[2]);
         if (g_sns_ms < 50) g_sns_ms = 50;      /* 別把 rpmsg 打爆 */
         if (argc > 3) g_sns_path = argv[3];
+    }
+    if (argc > 1 && 0 == strcmp(argv[1], "pwmd")) {
+        g_pwmd_mode = 1;
+        if (argc > 2) g_pwmd_path = argv[2];
     }
     if (argc > 1 && 0 == strcmp(argv[1], "sns")) {
         g_sns_mode = 1;
@@ -545,7 +581,7 @@ int main(int argc, char **argv)
            g_poll     ? "busy-poll" : "condvar",
            g_rt       ? "on"        : "off");
     apply_rt_tuning();
-    if (!g_pwm_mode && !g_jit_mode && !g_sns_mode && argc > 1)
+    if (!g_pwm_mode && !g_pwmd_mode && !g_jit_mode && !g_sns_mode && argc > 1)
         n_rounds = atoi(argv[1]);
     if (n_rounds <= 0)
         n_rounds = 500;
@@ -925,6 +961,79 @@ int main(int argc, char **argv)
                 nanosleep(&d, NULL);
             }
         }
+        goto shutdown;
+    }
+
+    if (g_pwmd_mode) {
+        /* 常駐 PWM 控制 daemon(網頁後端,serve_pwm.py 以子行程持有)。
+         * stdin 每行一筆:  <gpt> <a|b> <freq_hz> <duty_permille>
+         * 每筆送 PWMC、等回覆、把 R8 回報寫成 JSON(tmp+rename 原子替換)。
+         * stdin EOF 或 SIGINT 收攤,走與 snsjson 相同的 shutdown 路徑,
+         * 通道由本行程獨佔直到收攤(doc 16:反覆建拆會把 MHU 停在半個握手)。
+         * fgets 前先 poll(200ms):glibc signal() 帶 SA_RESTART,
+         * 不這樣做 Ctrl-C 之後 read 會自動重啟,force_stop 永遠沒機會被看到。 */
+        char line[128];
+        unsigned long long seq = 0;
+        int consecutive_fail = 0;
+        printf("pwmd 常駐:stdin 收 \"<gpt> <a|b> <freq_hz> <duty_permille>\",回報寫 %s\n",
+               g_pwmd_path);
+        while (!force_stop) {
+            struct pollfd pfd = { .fd = 0, .events = POLLIN };
+            int pr = poll(&pfd, 1, 20);   /* 20ms:旋鈕拖曳的即時感;CPU 影響可忽略 */
+            if (pr < 0) { if (EINTR == errno) continue; break; }
+            if (0 == pr) continue;
+            if (!fgets(line, sizeof(line), stdin)) break;   /* EOF = 收攤 */
+
+            unsigned gpt, freq, permille;
+            char ch;
+            if (4 != sscanf(line, "%u %c %u %u", &gpt, &ch, &freq, &permille)) {
+                fprintf(stderr, "pwmd: 看不懂:%s", line);
+                continue;
+            }
+
+            pwm_cmd_t cmd;
+            pwm_rsp_t rsp;
+            cmd.magic         = PWM_CMD_MAGIC;
+            cmd.abi_ver       = PWM_ABI_VER;
+            cmd.gpt           = gpt;
+            cmd.use_b         = ('b' == ch || 'B' == ch) ? 1u : 0u;
+            cmd.freq_hz       = freq;
+            cmd.duty_permille = permille;
+
+            /* 一律 trysend(doc 16 鐵律②) */
+            int sret = RPMSG_ERR_NO_BUFF;
+            for (int a = 0; a < 200 && !force_stop; a++) {
+                sret = rpmsg_trysend(&g_ept, &cmd, sizeof(cmd));
+                if (sret != RPMSG_ERR_NO_BUFF) break;
+                struct timespec d = { .tv_sec = 0, .tv_nsec = 1000 * 1000L };
+                nanosleep(&d, NULL);
+                platform_poll(g_platform);
+            }
+            if (force_stop) break;
+
+            const char *err  = NULL;
+            int         have = 0;
+            if (sret < 0)                                err = "trysend";
+            else if (wait_reply(1000) != 0)              err = "timeout";
+            else if (g_reply_len < sizeof(pwm_rsp_t))    err = "short";
+            else {
+                memcpy(&rsp, g_reply_buf, sizeof(rsp));
+                have = 1;
+                if (PWM_RSP_MAGIC != rsp.magic)      { err = "magic"; have = 0; }
+                else if (PWM_ABI_VER != rsp.abi_ver) { err = "abi";   have = 0; }
+            }
+            if (err && !have) {
+                if (++consecutive_fail >= 10) {
+                    fprintf(stderr, "pwmd: 連續 %d 次失敗,放棄\n", consecutive_fail);
+                    pwmd_write_json(g_pwmd_path, ++seq, &cmd, NULL, err);
+                    break;
+                }
+            } else {
+                consecutive_fail = 0;
+            }
+            pwmd_write_json(g_pwmd_path, ++seq, &cmd, have ? &rsp : NULL, err);
+        }
+        printf("pwmd 收攤,共處理 %llu 筆\n", seq);
         goto shutdown;
     }
 

@@ -154,3 +154,9 @@ sudo python3 ~/r8web/bb.py -q
 | `bb.py`: `magic = 0xFFFFFFFF` | no black-box firmware has run since power-on (cold DDR), or the R8 never started |
 | `bb.py` shows data but `uptime` frozen | leftover from a previous black-box firmware — the current one doesn't write the box (e.g. the echo demo) |
 | `bb.py` shows a fault | read `docs/05-blackbox.md` — DFSR/DFAR and the interrupt ring buffer are all captured for you |
+
+## Next: write your own firmware
+
+The PWM web-control demo (`docs/07-pwm-web-demo.md`) walks the full
+custom-firmware path: strip the sensors, drive hardware PWM from a GPT,
+and control frequency/duty from a web page over rpmsg.

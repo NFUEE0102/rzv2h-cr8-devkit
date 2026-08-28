@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RZ/V2H CR8 PWM 控制台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🎛️</text></svg>">
+<style>
+  :root {
+    --bg: #12151c; --panel: #1b2029; --edge: #2a3140;
+    --fg: #d7dde8; --dim: #78829a; --accent: #4db8ff; --accent2: #ffb454;
+    --ok: #4caf50; --bad: #ef5350;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg); min-height: 100vh;
+    font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; padding: 20px 12px;
+  }
+  h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: .06em; }
+  h1 small { color: var(--dim); font-weight: 400; margin-left: .6em; font-size: .72em; }
+  #badge { display: inline-block; width: .62em; height: .62em; border-radius: 50%;
+           background: var(--dim); margin-right: .45em; vertical-align: .05em; }
+  #badge.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  #badge.bad { background: var(--bad); }
+  .deck {
+    display: flex; flex-wrap: wrap; gap: 18px; justify-content: center;
+    margin-top: 22px; max-width: 900px;
+  }
+  .module {
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 14px;
+    padding: 18px 20px 16px; display: flex; flex-direction: column;
+    align-items: center; gap: 8px; min-width: 200px;
+  }
+  .module h2 { font-size: .82rem; color: var(--dim); font-weight: 500; letter-spacing: .12em; }
+  .module h2 b { color: var(--fg); }
+  .knob { touch-action: none; cursor: ns-resize; user-select: none; }
+  .knob .track { stroke: var(--edge); }
+  .knob .arc   { stroke: var(--accent); }
+  .knob.amber .arc { stroke: var(--accent2); }
+  .knob .cap   { fill: #232a37; stroke: #38415a; }
+  .knob .dot   { fill: var(--fg); }
+  .val { font-size: 1.22rem; font-variant-numeric: tabular-nums; }
+  .val small { color: var(--dim); font-size: .68em; }
+  .num { width: 108px; background: #10131a; color: var(--fg); border: 1px solid var(--edge);
+         border-radius: 7px; padding: 4px 8px; text-align: right; font-size: .9rem; }
+  .pin { font-size: .72rem; color: var(--dim); }
+  select { background: #10131a; color: var(--fg); border: 1px solid var(--edge);
+           border-radius: 7px; padding: 3px 6px; }
+  #report {
+    margin-top: 22px; background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 14px; padding: 14px 20px; max-width: 900px; width: 100%;
+    font-size: .86rem;
+  }
+  #report h2 { font-size: .8rem; color: var(--dim); letter-spacing: .12em; margin-bottom: 8px; }
+  #report table { border-collapse: collapse; width: 100%; }
+  #report td, #report th { padding: 3px 10px 3px 0; text-align: left;
+                           font-variant-numeric: tabular-nums; }
+  #report th { color: var(--dim); font-weight: 500; }
+  #err { color: var(--bad); margin-top: 6px; min-height: 1.2em; }
+  footer { color: var(--dim); font-size: .72rem; margin-top: 18px; text-align: center; line-height: 1.7; }
+  footer code { color: var(--fg); background: #10131a; padding: 0 .4em; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1><span id="badge"></span>RZ/V2H CR8 PWM 控制台
+  <small>網頁 → rpmsg → Cortex-R8 → GPT 硬體輸出</small></h1>
+
+<div class="deck">
+  <div class="module">
+    <h2>頻率 <b id="fVal2"></b></h2>
+    <svg class="knob" id="kF" width="130" height="130" viewBox="0 0 130 130"></svg>
+    <div class="val" id="fVal">1.000 <small>kHz</small></div>
+    <input class="num" id="fNum" type="number" min="1" max="1000000" step="1" value="1000"> Hz
+    <div class="pin">A/B 共用週期(同一顆 GTPR)</div>
+  </div>
+  <div class="module">
+    <h2>佔空比 <b>通道 A</b></h2>
+    <svg class="knob" id="kA" width="130" height="130" viewBox="0 0 130 130"></svg>
+    <div class="val" id="aVal">0.0 <small>%</small></div>
+    <input class="num" id="aNum" type="number" min="0" max="100" step="0.1" value="0"> %
+    <div class="pin" id="aPin">GTIOC6A → P76</div>
+  </div>
+  <div class="module amberwrap">
+    <h2>佔空比 <b>通道 B</b></h2>
+    <svg class="knob amber" id="kB" width="130" height="130" viewBox="0 0 130 130"></svg>
+    <div class="val" id="bVal">0.0 <small>%</small></div>
+    <input class="num" id="bNum" type="number" min="0" max="100" step="0.1" value="0"> %
+    <div class="pin" id="bPin">GTIOC6B → P77</div>
+  </div>
+</div>
+
+<div id="report">
+  <h2>R8 回報(每筆指令的實際套用值,PCLK 由 R8 回報)</h2>
+  <table>
+    <tr><th></th><th>實際頻率</th><th>實際佔空比</th><th>週期 counts</th><th>duty counts</th><th>seq</th></tr>
+    <tr><td>A</td><td id="rAf">—</td><td id="rAd">—</td><td id="rAp">—</td><td id="rAc">—</td><td id="rAs">—</td></tr>
+    <tr><td>B</td><td id="rBf">—</td><td id="rBd">—</td><td id="rBp">—</td><td id="rBc">—</td><td id="rBs">—</td></tr>
+  </table>
+  <div id="err"></div>
+</div>
+
+<footer>
+  GPT <select id="gptSel">
+    <option>0</option><option>4</option><option>5</option><option selected>6</option>
+    <option>7</option><option>8</option><option>9</option>
+  </select>(示範接線:GPT6 → P76 / P77;其餘通道腳位見 devkit docs)<br>
+  拖旋鈕(上下)、滾輪微調、雙擊歸零/歸中;改頻率會自動重發兩個通道的佔空比。<br>
+  查抖動統計前別動 GPT0 —— 它是 tick 抖動探針的時基。
+</footer>
+
+<script>
+"use strict";
+/* ---------- 狀態(freq 為 Hz;duty 為千分比,協定原生單位) ---------- */
+const st = { gpt: 6, freq: 1000, dutyA: 0, dutyB: 0 };
+const $ = id => document.getElementById(id);
+
+/* ---------- 旋鈕(synth 式:上下拖、滾輪、雙擊預設) ---------- */
+const A0 = 135, A1 = 405;              /* 起訖角(deg),270° 行程 */
+function arcPath(cx, cy, r, a0, a1) {
+  const p = a => [cx + r * Math.cos(a * Math.PI / 180), cy + r * Math.sin(a * Math.PI / 180)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  return `M${x0} ${y0} A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1} ${y1}`;
+}
+function mkKnob(svg, opts) {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (n, at) => { const e = document.createElementNS(NS, n);
+    for (const k in at) e.setAttribute(k, at[k]); svg.appendChild(e); return e; };
+  mk("path", { class: "track", d: arcPath(65, 65, 52, A0, A1),
+               fill: "none", "stroke-width": 7, "stroke-linecap": "round" });
+  const arc = mk("path", { class: "arc", fill: "none",
+                           "stroke-width": 7, "stroke-linecap": "round" });
+  mk("circle", { class: "cap", cx: 65, cy: 65, r: 40, "stroke-width": 2 });
+  const dot = mk("circle", { class: "dot", r: 4.5 });
+  let t = opts.get();
+  function render() {
+    t = Math.min(1, Math.max(0, t));
+    const a = A0 + t * (A1 - A0);
+    if (t > 0.004) arc.setAttribute("d", arcPath(65, 65, 52, A0, a));
+    else arc.setAttribute("d", "");
+    dot.setAttribute("cx", 65 + 28 * Math.cos(a * Math.PI / 180));
+    dot.setAttribute("cy", 65 + 28 * Math.sin(a * Math.PI / 180));
+  }
+  let drag = null;
+  svg.addEventListener("pointerdown", e => {
+    svg.setPointerCapture(e.pointerId);
+    drag = { y: e.clientY, t0: t };
+    e.preventDefault();
+  });
+  svg.addEventListener("pointermove", e => {
+    if (!drag) return;
+    t = drag.t0 + (drag.y - e.clientY) / 220;   /* 全行程約 220px */
+    render(); opts.set(t, false);
+  });
+  const end = e => { if (!drag) return; drag = null; opts.set(t, true); };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+  svg.addEventListener("wheel", e => {
+    e.preventDefault();
+    t += (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 0.002 : 0.01);
+    render(); opts.set(t, true);
+  }, { passive: false });
+  svg.addEventListener("dblclick", () => { t = opts.dflt; render(); opts.set(t, true); });
+  render();
+  return { sync() { t = opts.get(); render(); } };
+}
+
+/* ---------- 頻率:對數刻度 1 Hz – 100 kHz ---------- */
+const fT = f => Math.log10(Math.max(1, Math.min(1e5, f))) / 5;
+const tF = t => Math.round(10 ** (Math.min(1, Math.max(0, t)) * 5));
+function fmtF(f) {
+  return f >= 1000 ? `${(f / 1000).toFixed(3)} <small>kHz</small>`
+                   : `${f} <small>Hz</small>`;
+}
+
+/* ---------- 顯示同步 ---------- */
+function paint() {
+  $("fVal").innerHTML = fmtF(st.freq);
+  $("fNum").value = st.freq;
+  $("aVal").innerHTML = `${(st.dutyA / 10).toFixed(1)} <small>%</small>`;
+  $("aNum").value = (st.dutyA / 10).toFixed(1);
+  $("bVal").innerHTML = `${(st.dutyB / 10).toFixed(1)} <small>%</small>`;
+  $("bNum").value = (st.dutyB / 10).toFixed(1);
+  $("aPin").textContent = `GTIOC${st.gpt}A${st.gpt === 6 ? " → P76" : ""}`;
+  $("bPin").textContent = `GTIOC${st.gpt}B${st.gpt === 6 ? " → P77" : ""}`;
+}
+
+/* ---------- 送指令(節流:拖曳中 150ms 一發,放手必發) ---------- */
+let timer = null, pending = null, busy = false;
+function queue(channels, now) {
+  pending = { channels: new Set([...(pending ? pending.channels : []), ...channels]) };
+  if (now) { flush(); return; }
+  if (!timer) timer = setTimeout(flush, 150);
+}
+async function flush() {
+  clearTimeout(timer); timer = null;
+  if (busy || !pending) { if (pending) timer = setTimeout(flush, 60); return; }
+  const chs = [...pending.channels]; pending = null; busy = true;
+  try {
+    for (const ch of chs.sort()) {
+      const duty = ch === "a" ? st.dutyA : st.dutyB;
+      const r = await fetch("/api/pwm", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gpt: st.gpt, ch, freq_hz: st.freq, duty_permille: duty }),
+      }).then(x => x.json()).catch(e => ({ ok: 0, err: String(e) }));
+      report(ch, r);
+    }
+  } finally { busy = false; if (pending) timer = setTimeout(flush, 60); }
+}
+function report(ch, r) {
+  const C = ch.toUpperCase();
+  if (r.ok) {
+    $("err").textContent = "";
+    $(`r${C}f`).textContent = r.actual_freq_hz >= 1000
+      ? (r.actual_freq_hz / 1000).toFixed(4) + " kHz" : r.actual_freq_hz.toFixed(4) + " Hz";
+    $(`r${C}d`).textContent = r.actual_duty_pct.toFixed(2) + " %";
+    $(`r${C}p`).textContent = r.period_counts;
+    $(`r${C}c`).textContent = r.duty_counts;
+    $(`r${C}s`).textContent = r.seq;
+  } else {
+    $("err").textContent =
+      `通道 ${C}:${r.err || "status " + r.status}(seq ${r.seq ?? "—"})`;
+  }
+}
+
+/* ---------- 三顆旋鈕 ---------- */
+const kF = mkKnob($("kF"), {
+  get: () => fT(st.freq), dflt: fT(1000),
+  set(t, fin) { st.freq = tF(t); paint(); queue(["a", "b"], fin); },
+});
+const kA = mkKnob($("kA"), {
+  get: () => st.dutyA / 1000, dflt: 0,
+  set(t, fin) { st.dutyA = Math.round(Math.min(1, Math.max(0, t)) * 1000); paint(); queue(["a"], fin); },
+});
+const kB = mkKnob($("kB"), {
+  get: () => st.dutyB / 1000, dflt: 0,
+  set(t, fin) { st.dutyB = Math.round(Math.min(1, Math.max(0, t)) * 1000); paint(); queue(["b"], fin); },
+});
+
+/* ---------- 數字欄與 GPT 選擇 ---------- */
+$("fNum").addEventListener("change", () => {
+  st.freq = Math.min(1e6, Math.max(1, Math.round(+$("fNum").value || 1)));
+  paint(); kF.sync(); queue(["a", "b"], true);
+});
+$("aNum").addEventListener("change", () => {
+  st.dutyA = Math.min(1000, Math.max(0, Math.round((+$("aNum").value || 0) * 10)));
+  paint(); kA.sync(); queue(["a"], true);
+});
+$("bNum").addEventListener("change", () => {
+  st.dutyB = Math.min(1000, Math.max(0, Math.round((+$("bNum").value || 0) * 10)));
+  paint(); kB.sync(); queue(["b"], true);
+});
+$("gptSel").addEventListener("change", () => {
+  st.gpt = +$("gptSel").value; paint(); queue(["a", "b"], true);
+});
+
+/* ---------- daemon 存活燈 ---------- */
+async function pollStatus() {
+  try {
+    const s = await fetch("/api/status").then(x => x.json());
+    $("badge").className = s.daemon_alive ? "ok" : "bad";
+  } catch { $("badge").className = "bad"; }
+}
+setInterval(pollStatus, 3000);
+pollStatus();
+paint();
+</script>
+</body>
+</html>
