@@ -36,7 +36,7 @@ anything to get your first result:
 
 | Where | What |
 |---|---|
-| `/lib/firmware/cr8_rpmsg_echo_demo.elf` | **R8 echo firmware** — replies to every rpmsg message. Start with this one. |
+| `/lib/firmware/cr8_demo_patched.elf` | **R8 echo firmware** — replies to every rpmsg message. Start with this one. (Same binary as this repo's `examples/firmware/cr8_rpmsg_echo_demo.elf`.) |
 | `/lib/firmware/cr8_sensors.elf` | R8 sensor firmware (GPS + compass + black box). Runs fine with no sensors attached — it just reports 0 samples. |
 | `~/r8_bench/` | Linux-side rpmsg client, **already compiled** (`r8_bench`), sources + Makefile included |
 | `~/r8web/bb.py` | black-box reader (R8 health, from Linux, no console needed) |
@@ -58,7 +58,7 @@ git clone https://github.com/NFUEE0102/rzv2h-cr8-devkit.git ~/devkit
 ## Step 4 — Start the R8 (first firmware)
 
 ```sh
-sudo ~/devkit/tools/start-cr8.sh cr8_rpmsg_echo_demo.elf
+sudo ~/devkit/tools/start-cr8.sh cr8_demo_patched.elf
 ```
 
 What this does, so it isn't magic: it stops the core if needed, clears a
