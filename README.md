@@ -29,6 +29,13 @@ Verified on: RZ/V2H RDK (WS125-V2HRDKREFZ) and RZ/V2H EVK ver1, Linux
 | `examples/linux-client/` | Full CA55 client source (`r8_bench`) — builds on the board with the provided Makefile |
 | `examples/firmware/` | Prebuilt rpmsg echo firmware (phdr-fixed, ready to load) |
 
+## Fastest path: flash the reference image
+
+A ready-to-flash EVK SD image (16 GB cards and up) with everything below
+pre-installed is on the [Releases page](https://github.com/NFUEE0102/rzv2h-cr8-devkit/releases)
+— see `docs/06-sd-image.md`. Flash, boot, run the acceptance test. The rest of
+this README is for setting up an existing system by hand.
+
 ## Quickstart (board already prepared per docs/01 and docs/02)
 
 ```sh
