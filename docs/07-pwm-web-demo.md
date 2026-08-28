@@ -54,16 +54,18 @@ Same project, same FreeRTOS patches, same black box and rpmsg stack. Six edits:
 
 ## Pins
 
-**On the EVK, stick to GPT6 (P76/P77)** — those two pins are verified free.
-The firmware accepts commands for the other GPTs too, but their pins have traps:
+**On the EVK, stick to GPT6 (P76/P77)** — verified free, and physically on the
+**CN3 Pmod header** (full header maps: docs/08-evk-pmod-pinout.md). The
+firmware accepts commands for the other GPTs too, but their pins have traps:
 
-| GPT | Out | Pins | EVK caveat |
+| GPT | Out | Pins | Where / EVK caveat |
 |---|---|---|---|
-| 6 | A / B | **P76 / P77** | ✅ the demo channel |
-| 0 | A | P70 | jitter-probe timebase — changing it wrecks the stats |
-| 5 | A / B | P84 / P85 | **= Linux's ttySC1 (SCI4 UART). Don't.** |
-| 8 | A | P50 | factory-bound to Linux SPI (see the pin notes doc) |
-| 4 / 7 / 9 | B; A/B; A/B | P95; PA6/7; P96/97 | header locations not verified on the EVK |
+| 6 | A / B | **P76 / P77** | ✅ **CN3 pin 9 / pin 10** (GND on CN3 pin 5/11) — the demo channel |
+| 0 | A | P70 | CN6 pin 7 — jitter-probe timebase; changing it wrecks the stats |
+| 5 | A / B | P84 / P85 | **= Linux's ttySC1 (SCI4 UART). Don't.** Not on a Pmod anyway |
+| 8 | A | P50 | CN3 pin 2 — factory-bound to Linux SPI (docs/08) |
+| 7 | B | PA7 | CN2 pin 1 (shares the header with RSPI2 nets); A (PA6) unreachable |
+| 4 / 9 | B; A/B | P95; P96/97 | not on any Pmod header |
 
 ## A and B share the period (hardware fact)
 

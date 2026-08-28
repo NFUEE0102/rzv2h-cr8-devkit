@@ -79,14 +79,14 @@
     <svg class="knob" id="kA" width="130" height="130" viewBox="0 0 130 130"></svg>
     <div class="val" id="aVal">0.0 <small>%</small></div>
     <input class="num" id="aNum" type="number" min="0" max="100" step="0.1" value="0"> %
-    <div class="pin" id="aPin">GTIOC6A → P76</div>
+    <div class="pin" id="aPin">GTIOC6A → P76(CN3-9)</div>
   </div>
   <div class="module amberwrap">
     <h2>佔空比 <b>通道 B</b></h2>
     <svg class="knob amber" id="kB" width="130" height="130" viewBox="0 0 130 130"></svg>
     <div class="val" id="bVal">0.0 <small>%</small></div>
     <input class="num" id="bNum" type="number" min="0" max="100" step="0.1" value="0"> %
-    <div class="pin" id="bPin">GTIOC6B → P77</div>
+    <div class="pin" id="bPin">GTIOC6B → P77(CN3-10)</div>
   </div>
 </div>
 
@@ -104,7 +104,7 @@
   GPT <select id="gptSel">
     <option>0</option><option>4</option><option>5</option><option selected>6</option>
     <option>7</option><option>8</option><option>9</option>
-  </select>(示範接線:GPT6 → P76 / P77;其餘通道腳位見 devkit docs)<br>
+  </select>(示範接線:GPT6 → Pmod <b>CN3</b> pin 9 = P76、pin 10 = P77,GND 在 pin 5/11;其餘通道見 devkit docs)<br>
   拖旋鈕(上下)、滾輪微調、雙擊歸零/歸中;改頻率會自動重發兩個通道的佔空比。<br>
   查抖動統計前別動 GPT0 —— 它是 tick 抖動探針的時基。
 </footer>
@@ -181,8 +181,8 @@ function paint() {
   $("aNum").value = (st.dutyA / 10).toFixed(1);
   $("bVal").innerHTML = `${(st.dutyB / 10).toFixed(1)} <small>%</small>`;
   $("bNum").value = (st.dutyB / 10).toFixed(1);
-  $("aPin").textContent = `GTIOC${st.gpt}A${st.gpt === 6 ? " → P76" : ""}`;
-  $("bPin").textContent = `GTIOC${st.gpt}B${st.gpt === 6 ? " → P77" : ""}`;
+  $("aPin").textContent = `GTIOC${st.gpt}A${st.gpt === 6 ? " → P76(CN3-9)" : ""}`;
+  $("bPin").textContent = `GTIOC${st.gpt}B${st.gpt === 6 ? " → P77(CN3-10)" : ""}`;
 }
 
 /* ---------- 送指令(節流:拖曳中 150ms 一發,放手必發) ---------- */

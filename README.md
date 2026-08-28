@@ -24,6 +24,7 @@ Verified on: RZ/V2H RDK (WS125-V2HRDKREFZ) and RZ/V2H EVK ver1, Linux
 | `docs/04-communication.md` | How CA55 ↔ CR8 rpmsg actually works here (UIO + libmetal, no kernel rpmsg) |
 | `docs/05-blackbox.md` | The black box: field map, reader, and acceptance criteria |
 | `docs/07-pwm-web-demo.md` | Write your own firmware: web knobs -> rpmsg -> GPT hardware PWM |
+| `docs/08-evk-pmod-pinout.md` | EVK Pmod headers: which pin is physically where (CN1/CN2/CN3/CN6) |
 | `blackbox/` | `r8_blackbox.c/.h` (firmware side) + `bb.py` (Linux-side reader) |
 | `tools/` | `start-cr8.sh`, `deploy-cr8.sh`, `patch-elf-phdr.py`, UIO bind service |
 | `dts/` | EVK DTB with the CR8 handover applied, ready to install |
