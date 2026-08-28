@@ -17,6 +17,7 @@ Verified on: RZ/V2H RDK (WS125-V2HRDKREFZ) and RZ/V2H EVK ver1, Linux
 
 | Path | What it is |
 |---|---|
+| `docs/00-getting-started.md` | **Start here** — first time with the board: flash, boot, run the R8, build your own firmware |
 | `docs/01-boot-and-kernel.md` | Kernel requirements; porting the stack to a fresh board (EVK walkthrough) |
 | `docs/02-device-tree.md` | Every DT node the CR8 stack needs, and the one-line peripheral handover |
 | `docs/03-deploy-firmware.md` | How to replace the R8 firmware — including the mandatory ELF phdr fix |
@@ -33,8 +34,10 @@ Verified on: RZ/V2H RDK (WS125-V2HRDKREFZ) and RZ/V2H EVK ver1, Linux
 
 A ready-to-flash EVK SD image (16 GB cards and up) with everything below
 pre-installed is on the [Releases page](https://github.com/NFUEE0102/rzv2h-cr8-devkit/releases)
-— see `docs/06-sd-image.md`. Flash, boot, run the acceptance test. The rest of
-this README is for setting up an existing system by hand.
+— then follow **`docs/00-getting-started.md`** step by step: it assumes no
+prior remoteproc/FSP knowledge and goes from flashing the card to building and
+deploying your own firmware. The rest of this README is the condensed version
+for people who already know the stack.
 
 ## Quickstart (board already prepared per docs/01 and docs/02)
 
