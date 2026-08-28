@@ -24,11 +24,11 @@ Credentials: `ubuntu` / `ubuntu`. SSH enabled.
 
 ## Flash
 
-`evk-devkit-16gb-20260828.img.xz` — balenaEtcher flashes the `.img.xz` directly;
+`evk-devkit-16gb-v1.0.1.img.xz` — balenaEtcher flashes the `.img.xz` directly;
 or:
 
 ```sh
-xz -dc evk-devkit-16gb-20260828.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
+xz -dc evk-devkit-16gb-v1.0.1.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 Geometry: 12.2 GiB total (p1 FAT 200 MB, p2 ext4 12 GiB, ~4 GB free).
@@ -59,10 +59,18 @@ sudo python3 ~/r8web/bb.py
 
 | File | Content |
 |---|---|
-| `evk-devkit-16gb-20260828.img.xz` | the flashable image (this is all you need) |
+| `evk-devkit-16gb-v1.0.1.img.xz` | the flashable image (this is all you need) |
 | `bootloader-raw-4MiB.img.gz` | raw sectors 0–4 MiB (MBR+BL2+FIP) — kept for manual recovery; **already inside the .img** |
 | `parttable.txt`, `p1-boot.img.gz`, `p2-rootfs.e2img.gz` | capture pieces + `restore-evk-sd.sh` (alternative restore path) |
 | `SHA256SUMS` | checksums |
 
 Captured from a live rootfs after `sync`; assembly ran `e2fsck` so the journal
 is clean in the image.
+
+## v1.0.1 changes
+
+- On-board `start-r8-sensors.sh` / `start-demo.sh`: peripheral-ownership check
+  now reads the DT node status (`/sys/firmware/devicetree/base/soc/serial@12802000/status`)
+  instead of testing `/dev/ttySC1` existence — the ttySC numbering shifts with
+  the enabled-serial set and misfired on the EVK. The getting-started warning
+  about this no longer applies to this image.

@@ -13,7 +13,7 @@ talk to Linux — then build your own firmware for it.
 
 ## Step 1 — Flash the SD card
 
-Download `evk-devkit-16gb-*.img.xz` from the
+Download `evk-devkit-16gb-v1.0.1.img.xz` (or newer) from the
 [Releases page](https://github.com/NFUEE0102/rzv2h-cr8-devkit/releases).
 Etcher flashes the `.img.xz` directly — select the file, select the card, Flash.
 (Or: `xz -dc evk-devkit-16gb-*.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync`.)
@@ -49,11 +49,11 @@ them once:
 git clone https://github.com/NFUEE0102/rzv2h-cr8-devkit.git ~/devkit
 ```
 
-> ⚠️ Note on the on-board `~/start-r8-sensors.sh`: in image **v1.0.0** its
-> "is Linux still holding the UART?" check looks at `/dev/ttySC1`, which on the
-> EVK belongs to a *different* serial port — so it refuses to run even though
-> everything is fine. (Fixed on later boards/images to check the DT node status
-> directly.) On a v1.0.0 image, use `~/devkit/tools/start-cr8.sh` instead.
+> ⚠️ Only if you flashed the older **v1.0.0** image: its on-board `~/start-r8-sensors.sh`
+> checks `/dev/ttySC1`, which on the EVK is a *different* serial port, so it
+> refuses to run even though everything is fine — use `~/devkit/tools/start-cr8.sh`
+> there. **v1.0.1 and later images have this fixed** (the check reads the DT
+> node status directly).
 
 ## Step 4 — Start the R8 (first firmware)
 
