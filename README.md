@@ -27,6 +27,7 @@ Verified on: RZ/V2H RDK (WS125-V2HRDKREFZ) and RZ/V2H EVK ver1, Linux
 | `docs/08-evk-pmod-pinout.md` | EVK Pmod headers: which pin is physically where (CN1/CN2/CN3/CN6) |
 | `docs/09-percore-migration.md` | CR8_0 moved to its per-core carveout — the CM33 region is free now |
 | `docs/10-core1-bringup.md` | Both R8 cores running side by side — layout table + the three mines |
+| `docs/11-cm33-bringup.md` | CM33 up too — all three cores live; the carveout-wipe mine |
 | `blackbox/` | `r8_blackbox.c/.h` (firmware side) + `bb.py` (Linux-side reader) |
 | `tools/` | `start-cr8.sh`, `deploy-cr8.sh`, `patch-elf-phdr.py`, UIO bind service |
 | `dts/` | EVK DTB with the CR8 handover applied, ready to install |
