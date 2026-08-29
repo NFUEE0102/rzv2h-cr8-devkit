@@ -81,8 +81,14 @@ You should see `R8 running (cr8_pwm_demo.elf)`. Kernel messages about
 ```sh
 cd ~/r8_bench
 sudo R8_BENCH_NOTS=1 ./r8_bench 1000
-sh
 ```
+
+> **Single-client rule**: if the PWM/UART web service is running
+> (`start-pwm-demo.sh`), stop it before running `r8_bench` by hand — its
+> daemons already hold the core0/core1 rpmsg channels, and a second client
+> tramples the shared vrings (both sides then time out until the cores are
+> pair-restarted). Test order on a fresh card: **echo tests first, web last.**
+
 
 Expected: `1000/1000 ok, 0 errors`, average round-trip ≈ 0.15 ms. That's Linux
 sending 1000 messages through shared memory and the R8 echoing each one back.
