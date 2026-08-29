@@ -81,6 +81,7 @@ You should see `R8 running (cr8_pwm_demo.elf)`. Kernel messages about
 ```sh
 cd ~/r8_bench
 sudo R8_BENCH_NOTS=1 ./r8_bench 1000
+sh
 ```
 
 Expected: `1000/1000 ok, 0 errors`, average round-trip ≈ 0.15 ms. That's Linux
