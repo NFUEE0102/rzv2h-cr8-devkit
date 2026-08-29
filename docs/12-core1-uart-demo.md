@@ -15,6 +15,13 @@ browser ── /api/pwm ──▶ serve_pwm.py ── stdin ─▶ r8_bench pwmd
         ── /api/uart/send, /api/uart/status ──▶ r8_bench_c1 uartd ─ rpmsg ─▶ core1 ─▶ RSCI5
 ```
 
+Scope proof (browser-typed text on P72 = CN6 pin 8; the scope's own
+serial decoder reads back `0x55 0x55 0x55 0x55 0x2D…` = the "UUUU-"
+we typed — and the 0x55 alternating-bit frequency of 57.6 kHz is the
+baud rate 115200 verified by a frequency counter):
+
+![UART TX decoded on the scope](images/uart-tx-decode.png)
+
 ## Protocol (`r8_uart_proto.h`, ABI v1)
 
 Same endpoint as the PWM protocol, dispatched by magic: `uart_cmd_t`

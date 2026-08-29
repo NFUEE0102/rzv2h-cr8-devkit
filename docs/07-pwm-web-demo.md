@@ -24,6 +24,10 @@ applied** (period/duty counts; PCLK reported by the R8, not assumed by the
 A55) — that is the closed loop. UI text is zh-TW, same as the other on-board
 tools (`bb.py`).
 
+Scope proof (web-commanded 1 kHz / 50% on P76 = CN3 pin 9 — 999.96 Hz / 50.000% / 500.02 µs measured):
+
+![PWM on the scope](images/pwm-scope-1khz50.png)
+
 ## Run it
 
 Image v1.0.2 and later ships everything (`/lib/firmware/cr8_pwm_demo.elf` +
