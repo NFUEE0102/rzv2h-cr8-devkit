@@ -29,6 +29,7 @@ Verified on: RZ/V2H RDK (WS125-V2HRDKREFZ) and RZ/V2H EVK ver1, Linux
 | `docs/10-core1-bringup.md` | Both R8 cores running side by side — layout table + the three mines |
 | `docs/11-cm33-bringup.md` | CM33 up too — all three cores live; the carveout-wipe mine |
 | `docs/12-core1-uart-demo.md` | core1 UART terminal on the web page; mine #5 (no single-core R8 restart) |
+| `ROADMAP.md` | 2.0: flight-grade core management — parking-stub restart, crashed-core recovery |
 | `blackbox/` | `r8_blackbox.c/.h` (firmware side) + `bb.py` (Linux-side reader) |
 | `tools/` | `start-cr8.sh`, `deploy-cr8.sh`, `patch-elf-phdr.py`, UIO bind service |
 | `dts/` | EVK DTB with the CR8 handover applied, ready to install |
