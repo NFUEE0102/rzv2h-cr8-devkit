@@ -73,3 +73,39 @@ sudo ~/devkit/tools/start-cr8.sh cr8_pwm_demo.elf         # core0
 sudo ~/devkit/tools/start-cr8-core1.sh cr8_core1_demo.elf # core1
 sudo ~/devkit/tools/start-cm33.sh cm33_demo.elf           # cm33 — last
 ```
+
+## CM33 black box (all three cores observable)
+
+The CM33 firmware in this kit carries a Cortex-M33 port of the black box at
+**phys `0x431F0000`** (CM33 view `0x831F0000` — the old core0 location, inside
+the CM33's own region). Key offsets match the R8 layout (`+0x40` stage,
+`+0x44` fault, `+0x154` tick) so the start scripts' boot-health check works
+unchanged; the magic differs (`BB33`) so tools can tell the core type. On a
+HardFault it captures CFSR/HFSR/BFAR/MMFAR plus the stacked PC/LR — the
+"pre-UART freeze with zero information" failure mode of the July attempts can
+never happen silently again. Sources: `blackbox/cm33_blackbox.{c,h}`, hooks in
+`hal_entry.c` (init), `blinky_thread_entry.c` (pump), `main_task_entry.c`
+(stage 12 on vdev-ready — it stays at 10 until a client connects).
+
+One command now shows every core:
+
+```sh
+sudo python3 ~/r8web/bb.py --all
+#   cr8-core0  boot#1  uptime  50700  stage 12  [R8]
+#   cr8-core1  boot#4  uptime  48000  stage 12  [R8]
+#   cm33       boot#1  uptime  57000  stage 12  [CM33]
+```
+
+`--addr 0x431F0000` gives the CM33 detail view. To swap CM33 firmware safely
+(mine #4: its stop wipes the other cores), use `tools/redeploy-cm33.sh
+<new.elf>` — it performs the stop → install → start → full R8 rebuild sequence.
+
+## Origin of mine #4, verified
+
+The stop-path `memset` of registered carveouts is **stock Renesas rz-cmn
+behaviour**, not ours (our July patch only reshaped the CR8 cluster logic; the
+memset shows as context in that diff). For the CR8 cores the DT `reg` windows
+are cleanly partitioned per core, so wiping "your own" carveouts is sound —
+the defect is solely the CM33 node's greedy 63 MB `reg` window predating the
+three-core world. Root fix (backlog): skip `reg`-window carveouts in the stop
+memset (~5 lines in `rz_rproc.c`) and rebuild the kernel.

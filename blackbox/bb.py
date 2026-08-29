@@ -17,13 +17,15 @@ import subprocess, sys
 ADDR  = 0x431F0000            # 舊(共用佈局)位址;開機時自動偵測,見下
 MAGIC = 0x42423852
 
-# 兩代黑盒子位址(2026-08-29 per-core 遷移):
-#   0x439F0000 = per-core 佈局(vring-ctl1-c0 視窗尾端 64KB)
-#   0x441F0000 = core1(vring-ctl1-c1 視窗尾端)
-#   0x431F0000 = 共用佈局(vring-ctl1 視窗尾端 64KB)
-# 自動偵測:magic 有效者優先(新址先試);都無效就用新址報「沒初始化」。
-# 也可用 --addr 0xXXXXXXXX 強制指定。
+# 三核黑盒子位址(2026-08-29 三核大滿貫):
+#   0x439F0000 = CR8 core0(vring-ctl1-c0 視窗尾端 64KB,magic "R8BB")
+#   0x441F0000 = CR8 core1(vring-ctl1-c1 視窗尾端,magic "R8BB")
+#   0x431F0000 = CM33(vring-ctl1 視窗尾端;per-core 遷移前是 core0 舊家。
+#                magic "BB33" = CM33 精簡版佈局;讀到 "R8BB" = 舊 core0 殘影)
+# 自動偵測:magic 有效者優先;--all 一次看三核;--addr 0xXXXXXXXX 強制指定。
 ADDR_CANDIDATES = (0x439F0000, 0x441F0000, 0x431F0000)
+CORE_NAME = {0x439F0000: "cr8-core0", 0x441F0000: "cr8-core1", 0x431F0000: "cm33"}
+MAGIC_CM33 = 0x33334242      # "BB33":CM33 精簡佈局(關鍵欄 offset 與 R8 版對齊)
 
 F = [("magic",0x00),("version",0x04),("boot_count",0x08),("uptime_ticks",0x0C),
      ("hb_ipi",0x10),("hb_sensor",0x14),("hb_eptcb",0x18),
@@ -84,6 +86,29 @@ def rd(off):
     return int(out, 16)
 
 
+# ---- 三核總覽(--all)----
+if "--all" in sys.argv:
+    F_TXT = {0: "無", 1: "堆疊溢位", 2: "malloc", 3: "資料/硬體中止",
+             4: "取指中止", 5: "未定義指令", 6: "assert"}
+    for ADDR in ADDR_CANDIDATES:
+        name = CORE_NAME[ADDR]
+        try:
+            m = rd(0x00)
+        except Exception:
+            print(f"  {name:10s} @0x{ADDR:08X}  (讀取失敗)")
+            continue
+        if m == MAGIC or m == MAGIC_CM33:
+            kind = "R8" if m == MAGIC else "CM33"
+            if ADDR == 0x431F0000 and m == MAGIC:
+                kind = "R8(舊 core0 殘影)"
+            bc, up, st, ft = rd(0x08), rd(0x0C), rd(0x40), rd(0x44)
+            extra = "" if not ft else f"  ★fault={F_TXT.get(ft, ft)}"
+            print(f"  {name:10s} boot#{bc:<3d} uptime {up:>9d}  stage {st:<3d}"
+                  f" [{kind}]{extra}")
+        else:
+            print(f"  {name:10s} @0x{ADDR:08X}  未初始化(magic=0x{m:08X})")
+    sys.exit(0)
+
 # ---- 位址自動偵測(--addr 覆寫)----
 if "--addr" in sys.argv:
     ADDR = int(sys.argv[sys.argv.index("--addr") + 1], 0)
@@ -91,12 +116,31 @@ else:
     for _cand in ADDR_CANDIDATES:
         ADDR = _cand
         try:
-            if rd(0x00) == MAGIC:
+            if rd(0x00) in (MAGIC, MAGIC_CM33):
                 break
         except Exception:
             continue
     else:
         ADDR = ADDR_CANDIDATES[0]
+
+# ---- CM33 精簡佈局:專屬印法 ----
+try:
+    _m0 = rd(0x00)
+except Exception:
+    _m0 = 0
+if _m0 == MAGIC_CM33:
+    print("CM33 黑盒子 @0x%08X  boot #%d  uptime %d ticks  stage %d" %
+          (ADDR, rd(0x08), rd(0x0C), rd(0x40)))
+    ft = rd(0x44)
+    if ft:
+        print("死因: HardFault (type=%d)" % ft)
+        print("  CFSR=0x%08X  HFSR=0x%08X" % (rd(0x48), rd(0x4C)))
+        print("  BFAR=0x%08X  MMFAR=0x%08X" % (rd(0x50), rd(0x54)))
+        print("  stacked PC=0x%08X  LR=0x%08X  EXC_RETURN=0x%08X" %
+              (rd(0x58), rd(0x5C), rd(0x60)))
+    else:
+        print("死因: 無")
+    sys.exit(0)
 
 
 def rd_str(off, n):
