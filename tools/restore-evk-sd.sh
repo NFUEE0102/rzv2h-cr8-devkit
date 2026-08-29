@@ -6,7 +6,7 @@
 # Needs a card >= 256 GB (partition table is restored verbatim).
 # The card's entire contents are DESTROYED.
 #
-# Order matters (lesson learned the hard way on this platform):
+# Order matters:
 #   1. raw first-4MiB  — RZ/V2H boots from RAW sectors below partition 1:
 #      BL2 + FIP + U-Boot live in 0..4MiB. A backup that only covers the
 #      partitions produces a card that does not boot at all.
