@@ -1,6 +1,6 @@
 # RZ/V2H CR8-DevKit — EVK reference SD image (16 GB-card edition)
 
-Golden image captured 2026-08-28 from the working EVK ver1 board, stripped of
+The reference image is a fully configured EVK ver1 system, stripped of
 factory AI demo assets (~22 GB removed) so it **flashes onto any 16 GB (or
 larger) SD card**. Burn it and the board boots straight into the full CR8 stack
 described in [rzv2h-cr8-devkit](https://github.com/NFUEE0102/rzv2h-cr8-devkit).

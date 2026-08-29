@@ -18,11 +18,11 @@ cat /sys/class/remoteproc/remoteproc1/name
 
 If only `remoteproc0` (cm33) exists, your kernel predates the CR8 backport.
 
-## Porting the stack to a fresh board (how the EVK was done)
+## Porting the stack to a fresh board
 
-The EVK shipped with a factory kernel *without* CR8 support but with a DTB that
-**already contains** every CR8 node (device nodes, reserved-memory, UIO nodes).
-That made the port a kernel swap plus one DT status flip:
+If your factory DTB already contains every CR8 node (stock RDK and EVK DTBs
+do — device nodes, reserved-memory, UIO nodes), the port is just a kernel swap
+plus one DT status flip:
 
 1. **Pin down the boot chain before touching anything.** Verify `uEnv.txt` is
    live: `/proc/cmdline` must match `mmc_args` in `/boot/uEnv.txt` word for word.
@@ -36,7 +36,7 @@ That made the port a kernel swap plus one DT status flip:
 5. Verify: three remoteprocs probed, ten `/dev/uio*` after enabling the bind
    service, then run the echo test from the README quickstart.
 
-Gotchas that cost us time:
+Pitfalls:
 
 - `echo x | sudo -S tee /sys/...` feeds the *password* to `tee`. For sysfs writes
   always use `echo <pw> | sudo -S sh -c "echo x > /sys/..."`.

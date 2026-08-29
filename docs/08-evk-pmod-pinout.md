@@ -4,7 +4,7 @@ The EVK ver1 exposes its user-accessible pins on four Pmod headers. All signals
 are **3.3 V**. On every header, **pins 5/11 = GND** and **pins 6/12 = +3.3 V**.
 
 Cross-references to the rest of this kit are marked inline. Source: board
-schematic net names, cross-checked on the live board 2026-08-28.
+schematic net names, verified against the live board.
 
 ## CN1 — Pmod Type1/1A (GPIO)
 
@@ -45,7 +45,7 @@ nets; prefer GPT6 on CN3.
   them to a Linux **SPI** driver (`renesas,rsci-spi`, no spidev child). They
   are not free, and P50 doubles as GTIOC8A — commands to GPT8 succeed but the
   pin belongs to Linux.
-- P73 (pin 8) used to be the GPS UART (RSCI5 RXD) in the sensors firmware.
+- P73 (pin 8) is RSCI5 RXD — the UART demo's RX (docs/12), or the GPS RX under the sensors firmware.
 
 ## CN6 — Pmod Type6/6A (I2C)
 
@@ -59,7 +59,7 @@ nets; prefer GPT6 on CN3.
 - ⚠ **P70 (pin 7) = GTIOC0A = the jitter-probe's timebase** in the PWM-demo
   firmware. You *can* watch it, but sending GPT0 commands wrecks the jitter
   statistics (docs/07).
-- P72 (pin 8) used to be the GPS UART TXD (RSCI5) in the sensors firmware.
+- P72 (pin 8) is RSCI5 TXD — the UART demo's TX (docs/12), or the GPS TX under the sensors firmware.
 
 ## Not on any Pmod header
 

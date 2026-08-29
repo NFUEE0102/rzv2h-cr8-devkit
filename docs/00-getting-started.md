@@ -128,7 +128,7 @@ sudo python3 ~/r8web/bb.py -q
 2. **Apply the fixes**: copy the three files from this repo's `fsp-patches/`
    over `rzv/fsp/src/...` in your project. Without the `portASM.asm` fix, any
    firmware that uses two interrupt priorities will crash randomly under nested
-   interrupts (that bug cost us a week — details in the file headers).
+   interrupts (see the file headers for the failure mode).
 3. **Build** (hammer icon). Your firmware is
    **`Debug/<project-name>.elf`** — that single file is the entire deliverable.
 4. **Fix the ELF headers** (required once per build, on any machine with

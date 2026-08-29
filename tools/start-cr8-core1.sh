@@ -32,12 +32,12 @@ start_once () {
     bb_ok $BB
 }
 
-# mine #5 守門(對稱版,見 start-cr8.sh / docs/10):
+# 安全守門(對稱版,見 start-cr8.sh / docs/10):
 OTHER_STATE=$(cat /sys/class/remoteproc/remoteproc1/state 2>/dev/null || echo none)
 if [ "$OTHER_STATE" = "running" ] && [ "${FORCE:-0}" != "1" ]; then
     if [ "$(cat $RP/state)" != "offline" ] || \
        [ "$(busybox devmem $BB 32 2>/dev/null)" = "0x42423852" ]; then
-        echo "  ✗ mine #5:cr8-core0 running 且本核曾跑過 —— 單獨重啟會跑飛。"
+        echo "  ✗ cr8-core0 running 且本核曾跑過 —— 單核重啟不安全(無 per-core reset)。"
         echo "    請用 tools/restart-r8-pair.sh(兩核全下再依序上)。"
         exit 1
     fi

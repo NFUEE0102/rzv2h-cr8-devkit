@@ -3,10 +3,10 @@
 # Usage: sudo ./start-cr8.sh <firmware-name.elf> [tries]
 # The firmware must already be in /lib/firmware and phdr-patched (see docs/03).
 #
-# Layout note (2026-08-29): firmware built before the per-core carveout
-# migration keeps its resource table at 0x42F00000 (the region the DT assigns
-# to the CM33) with the black box at 0x431F0000; per-core builds use
-# 0x42F02000 (rsctbl-cr8-0) and 0x439F0000.  This script services both:
+# Layout note: legacy shared-layout firmware keeps its resource table at
+# 0x42F00000 (the CM33's region) with the black box at 0x431F0000; per-core
+# builds use 0x42F02000 (rsctbl-cr8-0) and 0x439F0000.  This script services
+# both:
 # it clears the virtio status bytes of BOTH resource tables and accepts the
 # boot-health check from either black-box location.
 set -u
@@ -48,14 +48,14 @@ start_once () {
     bb_ok $BB_SHARED && bb_ok $BB_PERCORE
 }
 
-# mine #5 守門:另一顆 R8 在跑、且本核「曾經跑過」(黑盒 magic 在)時,
+# 安全守門:另一顆 R8 在跑、且本核「曾經跑過」(黑盒 magic 在)時,
 # 單獨重啟 = halt-only stop 後從舊 PC 續跑 = 必跑飛。用 restart-r8-pair.sh。
 # pair 腳本自身以 FORCE=1 通過(cluster 剛整體 reset,安全)。
 OTHER_STATE=$(cat /sys/class/remoteproc/remoteproc2/state 2>/dev/null || echo none)
 if [ "$OTHER_STATE" = "running" ] && [ "${FORCE:-0}" != "1" ]; then
     if [ "$(cat $RP/state)" != "offline" ] || \
        [ "$(busybox devmem $BB_PERCORE 32 2>/dev/null)" = "0x42423852" ]; then
-        echo "  ✗ mine #5:cr8-core1 running 且本核曾跑過 —— 單獨重啟會跑飛。"
+        echo "  ✗ cr8-core1 running 且本核曾跑過 —— 單核重啟不安全(無 per-core reset)。"
         echo "    請用 tools/restart-r8-pair.sh(兩核全下再依序上)。"
         exit 1
     fi

@@ -12,7 +12,7 @@ RP=/sys/class/remoteproc/remoteproc0
 
 start_once () {
     if [ "$(cat $RP/state)" != "offline" ]; then
-        echo "  CM33 already $(cat $RP/state) — refusing to stop it (docs/11 mine #4)."
+        echo "  CM33 already $(cat $RP/state) — refusing to stop it: stopping the CM33 wipes its carveouts (docs/11)."
         echo "  If you really need a restart: stop it manually, then fully restart BOTH R8 cores."
         return 1
     fi

@@ -1,8 +1,8 @@
 #!/bin/sh
 # 換 CM33 韌體(root)。
-# 2026-08-30 地雷 #4 已根修(CM33 DT reg 縮成三精確窗:sram/rsctbl 8KB/vring 6MB),
-# stop CM33 只清自家 —— 但本腳本仍在換裝後驗證兩顆 R8 完好(bb --all),
-# 若在「未修窗的舊 DTB」上跑,驗證失敗時照舊執行 R8 全下重建。
+# 本映像的 DTB 把 CM33 stop 的清除範圍限制在自家三個窗(sram/rsctbl/vring),
+# stop CM33 不影響 R8。本腳本換裝後仍驗證兩顆 R8 完好;
+# 在未分窗的舊 DTB 上驗證失敗時,自動執行 R8 全下重建。
 # 用法:redeploy-cm33.sh <新elf路徑> [安裝名,預設 cm33_demo.elf]
 set -u
 NEW=${1:?usage: redeploy-cm33.sh <new.elf> [installed-name]}

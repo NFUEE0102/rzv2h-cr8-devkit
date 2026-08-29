@@ -4,11 +4,10 @@ Everything needed to bring up, deploy to, talk to, and **prove the health of** t
 Cortex-R8 real-time core on Renesas RZ/V2H boards (RDK and EVK), running FreeRTOS
 alongside Linux on the CA55.
 
-This is a staging deliverable of ongoing work on a fixed-wing UAV onboard computer.
-It packages the pieces that took real debugging to get right: the device tree, the
-firmware deployment pipeline, the rpmsg communication path, a DDR "black box" for
-acceptance testing on a console-less core, and the FSP-level fixes we needed along
-the way.
+This kit packages everything needed to run and program all three cores: the
+device tree, the firmware deployment pipeline, the rpmsg communication path, a
+DDR "black box" for acceptance testing on console-less cores, and the required
+FSP-level fixes.
 
 Verified on: RZ/V2H RDK (WS125-V2HRDKREFZ) and RZ/V2H EVK ver1, Linux
 `6.10.14-arm64-renesas`, FSP 3.1.0, FreeRTOS 10.6.1.
@@ -84,7 +83,7 @@ Pass criteria (see `docs/05-blackbox.md` for the full field map):
 
 ## The FSP fixes (fsp-patches/)
 
-Two defects in the stock FSP 3.1.0 CR8 support, found the hard way and fixed here.
+Two defects in the stock FSP 3.1.0 CR8 support, fixed here.
 Both files are drop-in replacements for `rzv/fsp/src/...` in an e2 studio project
 (they also carry optional, weak-linked diagnostic hooks that are no-ops unless the
 black box is present):
@@ -94,8 +93,7 @@ black box is present):
    the FSP port lost that bracket when splitting one BLX into three. Result: a
    *nested* interrupt clobbers the outer ISR's return address → Data Abort minutes
    to hours later, with unusable DFAR/LR. Fix: `lr` added to the entry/exit frame.
-   Validated: 5 h, 41 M interrupts, 681 nested events, zero faults (unfixed
-   baseline: one crash per 8–60 nested events).
+   Validated: 5 h, 41 M interrupts, 681 nested events, zero faults.
    Also restores upstream's `ulPortInterruptNesting` (context switch only at
    nesting level 0).
 2. **`bsp_irq.c` — `g_vector_table[gic_intid]` had no bounds check** (table has
@@ -109,10 +107,10 @@ Non-cacheable accesses are architecturally outer-shareable. Details in
 
 ## Boards
 
-- **RDK**: full sensor stack in production use (GPS UBX on RSCI5, IST8310 compass
-  on RSCI7 I2C, 5 Hz snapshots over rpmsg), 44 h continuous soak on record.
-- **EVK**: same kernel + firmware, brought up with `docs/01`; DTB in `dts/` has the
-  RSCI5 handover applied. rpmsg echo p99.9 = 0.2 ms.
+- **RDK**: full sensor stack (GPS UBX on RSCI5, IST8310 compass on RSCI7 I2C,
+  5 Hz snapshots over rpmsg), validated with a 44 h continuous soak.
+- **EVK**: same kernel + firmware (port procedure: `docs/01`); DTB in `dts/` has
+  the RSCI5 handover applied. rpmsg echo p99.9 = 0.2 ms.
 
 ## License / provenance
 

@@ -2,7 +2,7 @@
 
 ## 2.0 — flight-grade core management
 
-Driver: the mine #5 restriction (docs/12) is incompatible with **in-flight
+Driver: the no-single-core-R8-restart limitation (docs/10) is incompatible with **in-flight
 redundancy** — restarting one R8 core must not interrupt the other. Planned
 work, in order:
 
@@ -20,7 +20,7 @@ work, in order:
    PC — the parking scheme only covers cooperative restarts. Open questions
    to resolve first:
    - manual deep-dive: does SYSC/CPG hide any per-core warm-reset control
-     the current driver doesn't use? (R01UH* manual archaeology)
+     the current driver doesn't use? (review the R01UH* hardware manual)
    - if not: fault-hook hardening — on any fault the firmware itself jumps
      to the parking stub (fault handler = auto-park), making most "crashes"
      recoverable as cooperative parks; only a hard-hang (no fault taken)
@@ -39,18 +39,14 @@ work, in order:
 
 ## 1.x
 
-- **v1.1.0 image — SHIPPED 2026-08-30**: three-core firmware set + three
-  clients + guarded tools + docs 09-12 + three-core black box, on the
-  mine-4-fixed DTB. 26-point verified capture (20 file md5s against the live
-  board + 6 absence checks + re-captured p1 with the new DTB).
+- **v1.1.0 image — shipped**: three-core firmware set + three clients +
+  guarded tools + docs 09-12 + three-core black box, on the corrected
+  CM33-window DTB; md5-verified capture.
 
 ### Next update (1.x maintenance candidates)
 
-- **Warm-reboot hang diagnosis**: software `reboot` hangs before BL2 ever
-  prints (serial stays silent) — the PSCI SYSTEM_RESET path in the custom
-  TF-A (`v2h_1.0.4-dirty`) does not actually reset the SoC. A serial recorder
-  is parked on the ground station; one deliberate `reboot` with it attached
-  captures the full fingerprint (kernel "Restarting system" then silence).
-  Costs one power-cycle. Fix lands in TF-A, not in this kit's kernel.
+- **Warm-reboot hang**: software `reboot` hangs before BL2 prints — the PSCI
+  SYSTEM_RESET path in the TF-A build (`v2h_1.0.4`) does not reset the SoC.
+  Workaround: power-cycle. The fix belongs in TF-A, not in this kit's kernel.
 - Sensors web demo (`serve.py`/`start-demo.sh`) refresh for the per-core
   world, or formal retirement note in docs.

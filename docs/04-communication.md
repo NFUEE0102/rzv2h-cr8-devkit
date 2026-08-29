@@ -38,7 +38,7 @@ sudo R8_BENCH_NOTS=1 ./r8_bench 1000     # echo benchmark, channel 1
 Healthy numbers (both boards): ~6700 round-trips/s at 32 B, avg ≈ 0.15 ms,
 p99.9 < 0.5 ms, zero errors.
 
-Rules learned the hard way:
+Rules:
 
 - **One resident client owns the channel.** Repeated connect/teardown can park
   the MHU mid-handshake. For apps, keep one daemon and publish (e.g. to a file);
@@ -62,6 +62,5 @@ Stock libmetal/open-amp compile `atomic_thread_fence(seq_cst)` to `dmb ish`
 
 So the data is OSH-class while the fence is ISH-class. It happens to work on
 this silicon because the implementation is stronger than the architectural
-minimum — a latent trap, not a guarantee. Both sides in this kit use `dmb sy`
-(R8 firmware since 2026-08-25; the CA55 `.so`s were binary-patched — 17 sites —
-on 2026-08-28). **If you rebuild either side, keep the fences `sy` or `osh`.**
+minimum — a latent trap, not a guarantee. Both sides in this kit use `dmb sy`.
+**If you rebuild either side, keep the fences `sy` or `osh`.**

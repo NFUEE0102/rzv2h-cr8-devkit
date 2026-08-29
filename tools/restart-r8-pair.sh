@@ -1,5 +1,5 @@
 #!/bin/sh
-# mine #5 的正規重啟程序:CR8 無 per-core reset —— 另核 running 時 stop 單核
+# R8 重啟的正規程序:CR8 無 per-core reset —— 另核 running 時 stop 單核
 # 只是 halt(不 reset),再 start 會從舊 PC 續跑撞新 image = 跑飛。
 # 換任一 R8 韌體 / 重啟任一 R8 → 一律用本腳本:兩核全下 → core0 → core1。
 # 用法:sudo restart-r8-pair.sh [core0.elf] [core1.elf](預設現行 demo 對)

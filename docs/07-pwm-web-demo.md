@@ -1,8 +1,8 @@
 # 07 — PWM web-control demo (write your own firmware)
 
 Every earlier chapter runs firmware that ships with this kit. This chapter walks
-the full **write-your-own-firmware** path: the sensor firmware was stripped down
-to a **pure communication-test firmware** (no GPS, no compass) that drives
+the full **write-your-own-firmware** path with a **minimal communication-test
+firmware** (no GPS, no compass) that drives
 **hardware PWM from a GPT timer**, while the CA55 serves a web page with knobs
 that set the **frequency** and **duty cycle** live:
 
@@ -43,16 +43,16 @@ Manual install (older image): copy `examples/pwm-web-demo/` into `~/r8web/`,
 `examples/linux-client/` (`make` — the `pwmd` mode lives in `main.c`) and place
 `r8_bench` in `~/r8_bench/`.
 
-## What changed vs. the sensors firmware
+## Firmware design notes
 
-Same project, same FreeRTOS patches, same black box and rpmsg stack. Six edits:
+Same FreeRTOS patches, black box and rpmsg stack as the sensors firmware.
+The choices that matter:
 
-| Change | Why |
+| Choice | Why |
 |---|---|
-| `sensors_start()` and the sensor task removed | pure communication demo, no GPS/compass |
-| SNSQ branch removed from rpmsg cb1 | sensor-query packets now take the echo path |
-| P76/P77 rebound from RSCI7 (I2C) to GTIOC6A/B | compass gone, pins returned to GPT6 — also fixes the old "GPT6 replies OK but no pin output" defect |
-| all channels boot at duty=0 (quiet) | the old boot pattern drove every pin at power-up; dangerous with a servo/ESC attached |
+| no sensor task, SNSQ packets take the echo path | pure communication demo |
+| P76/P77 carry GTIOC6A/B | the demo's output pins, free on the EVK (Pmod CN3) |
+| all channels boot at duty=0 (quiet) | never drive outputs at power-up — dangerous with a servo/ESC attached |
 | `r8_blackbox_pump()` moved into the PWM heartbeat loop | the sensor task used to call it; without the move most black-box fields freeze |
 | jitter-probe timebase GPT6 → GPT0 | GPT6 is now the demo's main output; changing its period would wreck the statistics |
 
@@ -78,7 +78,7 @@ Both outputs of one GPT share a single counter and period register (GTPR):
 changes the other output's effective duty (its compare value is in counts), so
 the web page re-sends both channels' duty whenever the frequency knob moves.
 
-## The `pwmd` resident mode (new in `examples/linux-client/main.c`)
+## The `pwmd` resident mode (`examples/linux-client/main.c`)
 
 The rpmsg channel must be held by a **single resident client** (repeated
 open/close cycles park the MHU mid-handshake — see docs/04). The web backend
