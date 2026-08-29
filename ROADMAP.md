@@ -39,6 +39,18 @@ work, in order:
 
 ## 1.x
 
-- **v1.1.0 image**: three-core firmware set + three clients + guarded tools +
-  docs 09-12 + three-core black box, on the mine-4-fixed DTB. Material is
-  complete on the board; capture/verify/release pipeline is proven.
+- **v1.1.0 image — SHIPPED 2026-08-30**: three-core firmware set + three
+  clients + guarded tools + docs 09-12 + three-core black box, on the
+  mine-4-fixed DTB. 26-point verified capture (20 file md5s against the live
+  board + 6 absence checks + re-captured p1 with the new DTB).
+
+### Next update (1.x maintenance candidates)
+
+- **Warm-reboot hang diagnosis**: software `reboot` hangs before BL2 ever
+  prints (serial stays silent) — the PSCI SYSTEM_RESET path in the custom
+  TF-A (`v2h_1.0.4-dirty`) does not actually reset the SoC. A serial recorder
+  is parked on the ground station; one deliberate `reboot` with it attached
+  captures the full fingerprint (kernel "Restarting system" then silence).
+  Costs one power-cycle. Fix lands in TF-A, not in this kit's kernel.
+- Sensors web demo (`serve.py`/`start-demo.sh`) refresh for the per-core
+  world, or formal retirement note in docs.
