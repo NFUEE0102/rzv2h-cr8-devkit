@@ -109,3 +109,28 @@ are cleanly partitioned per core, so wiping "your own" carveouts is sound —
 the defect is solely the CM33 node's greedy 63 MB `reg` window predating the
 three-core world. Root fix (backlog): skip `reg`-window carveouts in the stop
 memset (~5 lines in `rz_rproc.c`) and rebuild the kernel.
+
+## ✅ MINE #4 DEFUSED (2026-08-30)
+
+Root-fixed without touching the kernel. Two coordinated changes:
+
+1. **CM33 DT `reg` split into three precise windows** (was one greedy
+   0x40010000+63MB block): `cm33_sram` 0x08000000/0xFFFFF, **`cm33_rsctbl`
+   0x42F00000/0x2000** (its own rsctbl + the MHU shmem page), **`cm33_vring`
+   0x43000000/0x600000** (its vrings + buffer + its black box). The driver
+   iterates `reg` entries generically, so three windows register as three
+   carveouts with no code change. `tools/percore-board.sh` applies it.
+2. **CM33 linker `OPENAMP_VRING_LENGTH` 15MB → 6MB** (the declared-but-unused
+   tail was what forced the old window to span the R8 territory).
+
+Verified live: with all three cores running, `echo stop >
+remoteproc0/state` now leaves both R8 black boxes intact and core0's tick
+advancing, while the CM33's own rsctbl/black box are cleared — the stock
+"wipe your own carveouts" semantics, now scoped correctly. All three echo
+channels re-verified 500/500 afterwards.
+
+Residual notes: the CM33's black box (inside `cm33_vring`) is wiped by its
+own stop — post-mortem reads must happen before stopping it; and the shared
+MHU shmem page (inside `cm33_rsctbl`) is cleared too, which self-heals since
+every kick rewrites its slot. `redeploy-cm33.sh` now just verifies the R8s
+(rebuild only triggers on an unfixed DTB).

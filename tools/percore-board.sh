@@ -58,6 +58,18 @@ else
     echo "  ⚠ /tmp/start-cr8.sh 不在,略過"
 fi
 
+echo "== 4) CM33 reg 三精確窗(地雷 #4 根修:stop 的 carveout memset 只清自家)=="
+if tr "\0" "\n" < /proc/device-tree/soc/cm33/reg-names 2>/dev/null | grep -q cm33_rsctbl || \
+   fdtget "$DTB" /soc/cm33 reg-names 2>/dev/null | grep -q cm33_rsctbl; then
+    echo "  已是三窗版"
+else
+    fdtput -t x "$DTB" /soc/cm33 reg 0x0 0x8000000 0x0 0xfffff 0x0 0x42f00000 0x0 0x2000 0x0 0x43000000 0x0 0x600000
+    fdtput -t s "$DTB" /soc/cm33 reg-names cm33_sram cm33_rsctbl cm33_vring
+    echo "  cm33 reg -> sram + rsctbl(8KB) + vring(6MB)"
+    echo "  ⚠ 配套:CM33 韌體 linker 的 OPENAMP_VRING_LENGTH 須 <= 0x600000"
+fi
+
 echo "== 驗證 DTB =="
 fdtget "$DTB" /vring-ctl0-c0@43800000 compatible && fdtget -t x "$DTB" /vring-ctl0-c0@43800000 reg
+fdtget "$DTB" /soc/cm33 reg-names
 echo "DONE — 需重開機讓新節點生效"
