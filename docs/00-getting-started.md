@@ -36,7 +36,7 @@ anything to get your first result:
 
 | Where | What |
 |---|---|
-| `/lib/firmware/cr8_demo_patched.elf` | **R8 echo firmware** — replies to every rpmsg message. Start with this one. (Same binary as this repo's `examples/firmware/cr8_rpmsg_echo_demo.elf`.) |
+| `/lib/firmware/cr8_pwm_demo.elf` | **Start with this one** — echoes every non-command rpmsg message *and* carries the PWM demo + black box. (`cr8_demo_patched.elf` also exists but is legacy shared-layout — docs/09.) |
 | `/lib/firmware/cr8_sensors.elf` | R8 sensor firmware (GPS + compass + black box). Runs fine with no sensors attached — it just reports 0 samples. |
 | `~/r8_bench/` | Linux-side rpmsg client, **already compiled** (`r8_bench`), sources + Makefile included |
 | `~/r8web/bb.py` | black-box reader (R8 health, from Linux, no console needed) |
@@ -59,8 +59,13 @@ git clone https://github.com/NFUEE0102/rzv2h-cr8-devkit.git ~/devkit   # v1.0.0/
 ## Step 4 — Start the R8 (first firmware)
 
 ```sh
-sudo ~/devkit/tools/start-cr8.sh cr8_demo_patched.elf
+sudo ~/devkit/tools/start-cr8.sh cr8_pwm_demo.elf
 ```
+
+> `cr8_demo_patched.elf` (the minimal echo-only demo) is **legacy**: it uses
+> the old shared memory layout and only talks to the old client
+> (`r8_bench.shared-layout`). Every current firmware echoes non-command
+> packets, so `cr8_pwm_demo.elf` serves the echo test — see docs/09.
 
 What this does, so it isn't magic: it stops the core if needed, clears a
 possibly-stale doorbell and two handshake bytes, tells remoteproc which file in
@@ -68,7 +73,7 @@ possibly-stale doorbell and two handshake bytes, tells remoteproc which file in
 (`.../remoteproc1/state`). `remoteproc1` **is** the Cortex-R8; the kernel loads
 the ELF into the R8's memory and releases it from reset.
 
-You should see `R8 running (cr8_demo_patched.elf)`. Kernel messages about
+You should see `R8 running (cr8_pwm_demo.elf)`. Kernel messages about
 "no resource table" during start are normal for this transport.
 
 ## Step 5 — Talk to it

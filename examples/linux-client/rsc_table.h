@@ -41,8 +41,8 @@
 #define NO_RESOURCE_ENTRIES     (2U)
 
 /* Resource table UIO device */
-#define CFG_RSCTBL_DEV_NAME     "42f00000.rsctbl"
-#define CFG_RSCTBL_MEM_PA       (0x42f00000U)
+#define CFG_RSCTBL_DEV_NAME     "42f02000.rsctbl-cr8-0"
+#define CFG_RSCTBL_MEM_PA       (0x42f02000U)
 #define CFG_RSCTBL_MAP_SIZE     (0x00001000U) // 4KB
 
 #if defined(__CC_ARM) || defined(__GNUC__)

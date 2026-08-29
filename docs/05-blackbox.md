@@ -4,7 +4,7 @@ The CR8 has no console in this configuration, and when things go wrong rpmsg is
 usually the thing that's broken — so it can't carry the diagnosis. The black box
 is a fixed struct the firmware writes into DDR that Linux can always read:
 
-- **Address `0x431F0000`** — tail of the `vring-ctl1` window: already UIO-mapped
+- **Address `0x439F0000 (per-core layout; legacy shared-layout firmware used 0x431F0000 — bb.py auto-detects both)`** — tail of the `vring-ctl1` window: already UIO-mapped
   on the Linux side, inside the R8's Normal-NC MPU region (writes are immediately
   visible), and far beyond the ~27 KB the vrings actually use.
 - Survives R8 crashes and restarts; `boot_count` persists across warm restarts so

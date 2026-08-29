@@ -14,8 +14,15 @@ start-demo.sh 讀的 +0x40(boot_stage)/ +0x44(fault_type)跨版本都有效。
 """
 import subprocess, sys
 
-ADDR  = 0x431F0000
+ADDR  = 0x431F0000            # 舊(共用佈局)位址;開機時自動偵測,見下
 MAGIC = 0x42423852
+
+# 兩代黑盒子位址(2026-08-29 per-core 遷移):
+#   0x439F0000 = per-core 佈局(vring-ctl1-c0 視窗尾端 64KB)
+#   0x431F0000 = 共用佈局(vring-ctl1 視窗尾端 64KB)
+# 自動偵測:magic 有效者優先(新址先試);都無效就用新址報「沒初始化」。
+# 也可用 --addr 0xXXXXXXXX 強制指定。
+ADDR_CANDIDATES = (0x439F0000, 0x431F0000)
 
 F = [("magic",0x00),("version",0x04),("boot_count",0x08),("uptime_ticks",0x0C),
      ("hb_ipi",0x10),("hb_sensor",0x14),("hb_eptcb",0x18),
@@ -74,6 +81,21 @@ def rd(off):
     out = subprocess.check_output(
         ["busybox", "devmem", str(ADDR + off), "32"]).decode().strip()
     return int(out, 16)
+
+
+# ---- 位址自動偵測(--addr 覆寫)----
+if "--addr" in sys.argv:
+    ADDR = int(sys.argv[sys.argv.index("--addr") + 1], 0)
+else:
+    for _cand in ADDR_CANDIDATES:
+        ADDR = _cand
+        try:
+            if rd(0x00) == MAGIC:
+                break
+        except Exception:
+            continue
+    else:
+        ADDR = ADDR_CANDIDATES[0]
 
 
 def rd_str(off, n):
