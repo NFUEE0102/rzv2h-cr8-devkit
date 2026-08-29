@@ -34,14 +34,18 @@ VALID_GPT = {0, 4, 5, 6, 7, 8, 9}
 
 
 class Daemon:
-    """持有 r8_bench pwmd 子行程;所有指令經 send() 序列化。"""
+    """持有一個 r8_bench 系 daemon 子行程(pwmd / uartd)。"""
 
-    def __init__(self):
+    def __init__(self, argv, cwd, json_path, log_path, name):
+        self.argv = argv
+        self.cwd = pathlib.Path(cwd)
+        self.json_path = pathlib.Path(json_path)
+        self.log_path = pathlib.Path(log_path)
+        self.name = name
         self.proc = None
         self.lock = threading.Lock()
         self.last_restart = 0.0
-        # 每通道最後一筆成功套用(鍵 "6a"/"6b"…)。頁面重載時用來恢復顯示 ——
-        # R8 是硬體,重載網頁不會改變它正在輸出的東西。
+        # PWM:每通道最後一筆成功套用(鍵 "6a"/"6b"…),頁面重載恢復用
         self.applied = {}
 
     def alive(self):
@@ -49,22 +53,22 @@ class Daemon:
 
     def start(self):
         # 舊 JSON 是上一個 daemon 的 seq 序列;新 daemon 從 1 重數,
-        # 不清掉的話 send() 的「seq 前進」判斷會永遠等不到。
-        JSON_PATH.unlink(missing_ok=True)
-        self._log_pos = DAEMON_LOG.stat().st_size if DAEMON_LOG.exists() else 0
-        log = open(DAEMON_LOG, "ab", buffering=0)
+        # 不清掉的話「seq 前進」判斷會永遠等不到。
+        self.json_path.unlink(missing_ok=True)
+        self._log_pos = self.log_path.stat().st_size if self.log_path.exists() else 0
+        log = open(self.log_path, "ab", buffering=0)
         self.proc = subprocess.Popen(
-            ["./r8_bench", "pwmd", str(JSON_PATH)],
-            cwd=BENCH_DIR, stdin=subprocess.PIPE, stdout=log, stderr=log)
-        print(f"pwmd daemon 啟動 pid={self.proc.pid}(log: {DAEMON_LOG})")
+            self.argv, cwd=self.cwd,
+            stdin=subprocess.PIPE, stdout=log, stderr=log)
+        print(f"{self.name} daemon 啟動 pid={self.proc.pid}(log: {self.log_path})")
 
     def wait_ready(self, timeout=15.0):
-        """等 daemon 印出就緒行(rpmsg bind 完成後才印)。log 是 append 的,
-        只在本次啟動之後的新增段找,免得被上一輪的字樣騙到。"""
+        """等 daemon 印出就緒行(「…常駐:stdin」,pwmd/uartd 通用)。
+        log 是 append 的,只在本次啟動之後的新增段找。"""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
-                if "pwmd 常駐".encode() in DAEMON_LOG.read_bytes()[self._log_pos:]:
+                if "常駐:stdin".encode() in self.log_path.read_bytes()[self._log_pos:]:
                     return True
             except OSError:
                 pass
@@ -72,6 +76,24 @@ class Daemon:
                 return False
             time.sleep(0.2)
         return False
+
+    def read_json(self):
+        try:
+            return json.loads(self.json_path.read_text())
+        except Exception:
+            return None
+
+    def writeline(self, line):
+        """寫一行給 daemon(fire-and-forget;UART 用)。"""
+        with self.lock:
+            if not self.alive():
+                return False
+            try:
+                self.proc.stdin.write((line + "\n").encode())
+                self.proc.stdin.flush()
+                return True
+            except Exception:
+                return False
 
     def stop(self):
         if self.proc is None:
@@ -82,22 +104,15 @@ class Daemon:
             pass
         try:
             self.proc.wait(timeout=8)
-            print("pwmd daemon 已收攤")
+            print(f"{self.name} daemon 已收攤")
         except subprocess.TimeoutExpired:
-            print("pwmd daemon 8 秒沒收攤,補 SIGINT(絕不 SIGKILL)")
+            print(f"{self.name} daemon 8 秒沒收攤,補 SIGINT(絕不 SIGKILL)")
             self.proc.send_signal(signal.SIGINT)
             try:
                 self.proc.wait(timeout=8)
             except subprocess.TimeoutExpired:
                 print("⚠ daemon 仍未退出,放著 —— 不 SIGKILL(MHU 會卡死)")
         self.proc = None
-
-    @staticmethod
-    def _read_json():
-        try:
-            return json.loads(JSON_PATH.read_text())
-        except Exception:
-            return None
 
     def send(self, gpt, ch, freq_hz, duty_permille, timeout=3.0):
         """寫一行指令,等 seq 前進,回傳 R8 的回報 dict。"""
@@ -112,7 +127,7 @@ class Daemon:
                 self.start()
                 if not self.wait_ready():
                     return {"ok": 0, "err": "daemon restart failed"}
-            before = self._read_json()
+            before = self.read_json()
             seq0 = before["seq"] if before else 0
             line = f"{gpt} {ch} {freq_hz} {duty_permille}\n"
             try:
@@ -122,7 +137,7 @@ class Daemon:
                 return {"ok": 0, "err": f"stdin write: {e}"}
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
-                cur = self._read_json()
+                cur = self.read_json()
                 if cur and cur.get("seq", 0) > seq0:
                     seq0 = cur["seq"]
                     # 只認領參數完全相符的回報 —— stdin 有積壓時,seq 前進
@@ -137,7 +152,11 @@ class Daemon:
             return {"ok": 0, "err": "timeout waiting daemon"}
 
 
-DAEMON = Daemon()
+DAEMON = Daemon(["./r8_bench", "pwmd", str(JSON_PATH)], BENCH_DIR,
+                JSON_PATH, DAEMON_LOG, "pwmd(core0)")
+UARTD  = Daemon(["./r8_bench_c1", "uartd", "/run/r8uart.json"],
+                "/home/ubuntu/r8_bench_c1",
+                "/run/r8uart.json", "/run/r8uartd.log", "uartd(core1)")
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -160,12 +179,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             self.path = "/pwm.html"
         if self.path == "/api/status":
-            last = Daemon._read_json()
-            return self._json(200, {"daemon_alive": DAEMON.alive(), "last": last,
+            return self._json(200, {"daemon_alive": DAEMON.alive(),
+                                    "last": DAEMON.read_json(),
                                     "applied": DAEMON.applied})
+        if self.path == "/api/uart/status":
+            return self._json(200, {"daemon_alive": UARTD.alive(),
+                                    "state": UARTD.read_json()})
         return super().do_GET()
 
     def do_POST(self):
+        if self.path == "/api/uart/send":
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+                req = json.loads(self.rfile.read(n))
+                text = str(req["text"])[:380]
+            except Exception as e:
+                return self._json(400, {"ok": 0, "err": f"bad request: {e}"})
+            ok = UARTD.writeline("send " + text.replace("\n", " "))
+            return self._json(200 if ok else 502, {"ok": 1 if ok else 0})
         if self.path != "/api/pwm":
             return self._json(404, {"ok": 0, "err": "no such endpoint"})
         try:
@@ -202,8 +233,11 @@ def main():
     # 先綁 port 再起 daemon:port 被占時直接死在這裡,不會留下孤兒 daemon
     srv = Srv(("", PORT), Handler)
     DAEMON.start()
+    UARTD.start()
     if not DAEMON.wait_ready():
-        print("⚠ daemon 15 秒內沒就緒 —— 照樣開站,指令會 timeout,查 /run/r8pwmd.log")
+        print("⚠ pwmd 15 秒內沒就緒 —— core0 指令會 timeout,查 /run/r8pwmd.log")
+    if not UARTD.wait_ready():
+        print("⚠ uartd 15 秒內沒就緒 —— core1 UART 面板不會動,查 /run/r8uartd.log")
     print(f"PWM 示範網頁: http://<板子IP>:{PORT}/  (Ctrl-C 停止)")
     try:
         srv.serve_forever()
@@ -212,6 +246,7 @@ def main():
     finally:
         srv.server_close()
         DAEMON.stop()
+        UARTD.stop()
 
 
 if __name__ == "__main__":

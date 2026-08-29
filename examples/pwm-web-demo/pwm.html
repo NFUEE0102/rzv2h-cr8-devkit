@@ -90,6 +90,19 @@
   </div>
 </div>
 
+<div id="uartPanel" style="margin-top:22px;background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:14px 20px;max-width:900px;width:100%;font-size:.86rem;">
+  <h2 style="font-size:.8rem;color:var(--dim);letter-spacing:.12em;margin-bottom:8px;">
+    <span id="uartBadge" style="display:inline-block;width:.62em;height:.62em;border-radius:50%;background:var(--dim);margin-right:.45em;"></span>
+    CR8 core1 — UART 終端(RSCI5 115200,TX=P72=CN6-8、RX=P73=CN3-8)</h2>
+  <div style="display:flex;gap:8px;margin-bottom:8px;">
+    <input id="uartIn" type="text" placeholder="輸入文字,Enter 送出(經 rpmsg → core1 → UART TX)"
+           style="flex:1;background:#10131a;color:var(--fg);border:1px solid var(--edge);border-radius:7px;padding:6px 10px;font-size:.9rem;">
+    <button id="uartSend" style="background:var(--accent);color:#0c0f14;border:none;border-radius:7px;padding:6px 16px;font-weight:600;cursor:pointer;">送出</button>
+  </div>
+  <pre id="uartRx" style="background:#10131a;border:1px solid var(--edge);border-radius:7px;min-height:5em;max-height:14em;overflow-y:auto;padding:8px 10px;white-space:pre-wrap;word-break:break-all;color:var(--fg);margin:0;">(RX 空 —— 想看回顯,把 P72(CN6-8)跳線接到 P73(CN3-8)做 loopback)</pre>
+  <div style="color:var(--dim);margin-top:6px;">TX <span id="uTx">0</span> B・RX <span id="uRx">0</span> B・丟棄 <span id="uDrop">0</span> B</div>
+</div>
+
 <div id="report">
   <h2>R8 回報(每筆指令的實際套用值,PCLK 由 R8 回報)</h2>
   <table>
@@ -253,6 +266,41 @@ $("bNum").addEventListener("change", () => {
 $("gptSel").addEventListener("change", () => {
   st.gpt = +$("gptSel").value; paint(); queue(["a", "b"], true);
 });
+
+/* ---------- core1 UART 終端 ---------- */
+async function uartSend() {
+  const el = $("uartIn");
+  const text = el.value;
+  if (!text) return;
+  el.value = "";
+  await fetch("/api/uart/send", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  }).catch(() => {});
+}
+$("uartSend").addEventListener("click", uartSend);
+$("uartIn").addEventListener("keydown", e => { if (e.key === "Enter" || e.keyCode === 13) uartSend(); });
+
+async function pollUart() {
+  try {
+    const s = await fetch("/api/uart/status").then(x => x.json());
+    $("uartBadge").style.background = s.daemon_alive ? "var(--ok)" : "var(--bad)";
+    if (s.state) {
+      $("uTx").textContent = s.state.tx_total;
+      $("uRx").textContent = s.state.rx_total;
+      $("uDrop").textContent = s.state.rx_dropped;
+      if (s.state.rx_text) {
+        const box = $("uartRx");
+        if (box.textContent !== s.state.rx_text) {
+          box.textContent = s.state.rx_text;
+          box.scrollTop = box.scrollHeight;
+        }
+      }
+    }
+  } catch { $("uartBadge").style.background = "var(--bad)"; }
+}
+setInterval(pollUart, 1000);
+pollUart();
 
 /* ---------- daemon 存活燈 ---------- */
 async function pollStatus() {

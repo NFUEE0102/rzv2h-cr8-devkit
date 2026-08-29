@@ -27,10 +27,7 @@ for a in 0x439F0000 0x441F0000; do
 done
 if [ $ok = 0 ]; then
     echo "== 3b) 舊世界復原:兩顆 R8 全下再依序上 =="
-    echo stop > /sys/class/remoteproc/remoteproc2/state 2>/dev/null; sleep 2
-    echo stop > /sys/class/remoteproc/remoteproc1/state 2>/dev/null; sleep 2
-    /home/ubuntu/devkit/tools/start-cr8.sh cr8_pwm_demo.elf 2>/dev/null | tail -1
-    /home/ubuntu/devkit/tools/start-cr8-core1.sh cr8_core1_demo.elf 2>/dev/null | tail -1
+    /home/ubuntu/devkit/tools/restart-r8-pair.sh 2>/dev/null | tail -3
 else
     echo "  ✓ R8 完好,無需重建"
 fi

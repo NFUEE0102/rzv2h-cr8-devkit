@@ -48,6 +48,19 @@ start_once () {
     bb_ok $BB_SHARED && bb_ok $BB_PERCORE
 }
 
+# mine #5 守門:另一顆 R8 在跑、且本核「曾經跑過」(黑盒 magic 在)時,
+# 單獨重啟 = halt-only stop 後從舊 PC 續跑 = 必跑飛。用 restart-r8-pair.sh。
+# pair 腳本自身以 FORCE=1 通過(cluster 剛整體 reset,安全)。
+OTHER_STATE=$(cat /sys/class/remoteproc/remoteproc2/state 2>/dev/null || echo none)
+if [ "$OTHER_STATE" = "running" ] && [ "${FORCE:-0}" != "1" ]; then
+    if [ "$(cat $RP/state)" != "offline" ] || \
+       [ "$(busybox devmem $BB_PERCORE 32 2>/dev/null)" = "0x42423852" ]; then
+        echo "  ✗ mine #5:cr8-core1 running 且本核曾跑過 —— 單獨重啟會跑飛。"
+        echo "    請用 tools/restart-r8-pair.sh(兩核全下再依序上)。"
+        exit 1
+    fi
+fi
+
 for n in $(seq 1 "$TRIES"); do
     if start_once; then
         [ "$n" -gt 1 ] && echo "  R8 running ($FW), attempt $n" || echo "  R8 running ($FW)"

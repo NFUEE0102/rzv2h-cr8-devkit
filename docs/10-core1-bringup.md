@@ -62,3 +62,16 @@ Start: `tools/start-cr8-core1.sh <fw.elf>`.
   earlier bring-up attempts hard-froze pre-UART (archived); the DT's
   `renesas,rz-bootaddrs = <0x08003000 0x18003000>` differs from the address
   those attempts used — worth one retry before reaching for J-Link.
+
+## Addendum (2026-08-30): mines revisited
+
+- **Mine #5 (see docs/12)**: never restart one R8 core while the other runs —
+  no per-core reset exists; a halted core resumes from its old PC inside the
+  freshly loaded image. `tools/restart-r8-pair.sh` is the lawful path and the
+  start scripts now enforce it.
+- **Mine #1 correction**: the original "GTM ch5" build never actually
+  regenerated (e2studio cache) — the echo demo had been running a *shared*
+  GTM ch4 the whole time, which happens to co-run once both cores are up
+  (the first-start freeze was the takeover during core1's initial GTM open).
+  The current core1 build genuinely uses ch5; verify via
+  `rzv_gen/vector_data.c` (`GTM5 INT`), never via the XML alone.

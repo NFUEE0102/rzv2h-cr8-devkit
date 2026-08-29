@@ -33,6 +33,7 @@
 #include "helper.h"      /* copy_data(): device-memory-safe byte copy, see msg_cb() */
 #include "rsc_table.h"   /* struct remote_resource_table, for release_channel() */
 #include "r8_pwm_proto.h"
+#include "r8_uart_proto.h"
 
 /* ---- A55 -> R8 PWM 控制模式(2026-08-13,doc 16 §5.6)---- */
 static int      g_sns_mode     = 0;   /* R8 感測器快照查詢 */
@@ -43,6 +44,8 @@ static int      g_sns_n        = 1;   /* 連續讀幾次 */
 static int      g_pwm_mode     = 0;
 static int         g_pwmd_mode = 0;                  /* 常駐 PWM daemon(網頁後端) */
 static const char *g_pwmd_path = "/run/r8pwm.json";  /* 每筆指令的 R8 回報落地處 */
+static int         g_uartd_mode = 0;                 /* UART 展示 daemon(core1)*/
+static const char *g_uartd_path = "/run/r8uart.json";
 static int      g_jit_mode     = 0;   /* tick 抖動量測 */
 static int      g_jit_secs     = 10;
 static int      g_jit_load     = 0;
@@ -212,7 +215,7 @@ struct _payload {
 };
 
 static const char *SVC_NAME = CFG_RPMSG_SVC_NAME1; /* "rpmsg-service-1" = CR8_0 ch1 */
-static const unsigned int MBX_ID = UIO_RECEIVER2;  /* CR8 core0 */
+static const unsigned int MBX_ID = UIO_RECEIVER2;  /* CR8 core0(預設;core1 改 UIO_RECEIVER3)*/  /* CR8 core0 */
 /* Each per-channel resource_table slice (selected via proc_id/rsc_id in
  * platform_init) carries exactly one fw_rsc_vdev entry, so the vdev index
  * *within that slice* is always 0 -- the channel itself is already picked
@@ -495,6 +498,38 @@ static void sns_write_json(const sns_rsp_t *r, const char *path,
     (void) rename(tmp, path);   /* 原子替換 */
 }
 
+/* uartd:JSON 字串逃脫(可印 ASCII 直出;控制/非 ASCII -> \u00XX)*/
+static void uartd_json_escape(FILE *f, const char *s, int n)
+{
+    for (int i = 0; i < n; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c == '"' || c == '\\')      fprintf(f, "\\%c", c);
+        else if (c == '\n')             fputs("\\n", f);
+        else if (c == '\r')             fputs("\\r", f);
+        else if (c < 0x20 || c > 0x7E)  fprintf(f, "\\u%04x", c);
+        else                            fputc(c, f);
+    }
+}
+
+/* uartd:送一筆 uart_cmd、等回覆。回 0 = rsp 有效。 */
+static int uartd_xfer(const uart_cmd_t *cmd, uart_rsp_t *rsp)
+{
+    int sret = RPMSG_ERR_NO_BUFF;
+    for (int a = 0; a < 200 && !force_stop; a++) {
+        sret = rpmsg_trysend(&g_ept, cmd, sizeof(*cmd));
+        if (sret != RPMSG_ERR_NO_BUFF) break;
+        struct timespec d = { .tv_sec = 0, .tv_nsec = 1000 * 1000L };
+        nanosleep(&d, NULL);
+        platform_poll(g_platform);
+    }
+    if (sret < 0 || force_stop) return -1;
+    if (wait_reply(1000) != 0) return -1;
+    if (g_reply_len < sizeof(uart_rsp_t)) return -1;
+    memcpy(rsp, g_reply_buf, sizeof(*rsp));
+    if (UART_RSP_MAGIC != rsp->magic || UART_ABI_VER != rsp->abi_ver) return -1;
+    return 0;
+}
+
 /* pwmd:把一筆指令與 R8 的回覆(或錯誤)寫成單行 JSON,tmp+rename 原子替換。
  * 與 sns_write_json 相同的落地手法,讀方(serve_pwm.py)靠 seq 判斷新舊。 */
 static void pwmd_write_json(const char *path, unsigned long long seq,
@@ -545,6 +580,10 @@ int main(int argc, char **argv)
         g_pwmd_mode = 1;
         if (argc > 2) g_pwmd_path = argv[2];
     }
+    if (argc > 1 && 0 == strcmp(argv[1], "uartd")) {
+        g_uartd_mode = 1;
+        if (argc > 2) g_uartd_path = argv[2];
+    }
     if (argc > 1 && 0 == strcmp(argv[1], "sns")) {
         g_sns_mode = 1;
         if (argc > 2) g_sns_n = atoi(argv[2]);
@@ -581,7 +620,7 @@ int main(int argc, char **argv)
            g_poll     ? "busy-poll" : "condvar",
            g_rt       ? "on"        : "off");
     apply_rt_tuning();
-    if (!g_pwm_mode && !g_pwmd_mode && !g_jit_mode && !g_sns_mode && argc > 1)
+    if (!g_pwm_mode && !g_pwmd_mode && !g_uartd_mode && !g_jit_mode && !g_sns_mode && argc > 1)
         n_rounds = atoi(argv[1]);
     if (n_rounds <= 0)
         n_rounds = 500;
@@ -961,6 +1000,91 @@ int main(int argc, char **argv)
                 nanosleep(&d, NULL);
             }
         }
+        goto shutdown;
+    }
+
+    if (g_uartd_mode) {
+        /* UART 展示 daemon(core1)。stdin:`send <text>` -> text+'\n' 出 UART;
+         * 閒時每 ~200ms QUERY 收 RX。JSON:totals + 累積 RX(4KB 滾動)。
+         * 停止同 pwmd:stdin EOF 或 SIGINT,完整 release_channel。 */
+        static char rx_acc[4096];
+        int  rx_len = 0;
+        char line[512];
+        unsigned long long seq = 0;
+        int idle = 0, fails = 0;
+        setvbuf(stdin, NULL, _IONBF, 0);   /* poll+fgets 陷阱,同 pwmd */
+        printf("uartd 常駐:stdin 收 \"send <text>\",回報寫 %s\n", g_uartd_path);
+        while (!force_stop) {
+            uart_cmd_t cmd; uart_rsp_t rsp;
+            int have_send = 0;
+            struct pollfd pfd = { .fd = 0, .events = POLLIN };
+            int pr = poll(&pfd, 1, 20);
+            if (pr < 0) { if (EINTR == errno) continue; break; }
+            if (pr > 0) {
+                if (!fgets(line, sizeof(line), stdin)) break;   /* EOF */
+                size_t L = strlen(line);
+                while (L && (line[L-1] == '\n' || line[L-1] == '\r')) line[--L] = 0;
+                if (0 == strncmp(line, "send ", 5)) {
+                    const char *txt = line + 5;
+                    size_t n = strlen(txt);
+                    if (n > UART_DATA_MAX - 1) n = UART_DATA_MAX - 1;
+                    memset(&cmd, 0, sizeof(cmd));
+                    cmd.magic = UART_CMD_MAGIC; cmd.abi_ver = UART_ABI_VER;
+                    cmd.op = UART_OP_SEND;
+                    memcpy(cmd.data, txt, n);
+                    cmd.data[n] = '\n';
+                    cmd.len = (uint32_t)(n + 1);
+                    have_send = 1;
+                } else if (L) {
+                    fprintf(stderr, "uartd: 看不懂:%s\n", line);
+                    continue;
+                }
+            } else if (++idle < 10) {
+                continue;                       /* 每 10 輪(~200ms)才 QUERY */
+            }
+            idle = 0;
+            if (!have_send) {
+                memset(&cmd, 0, sizeof(cmd));
+                cmd.magic = UART_CMD_MAGIC; cmd.abi_ver = UART_ABI_VER;
+                cmd.op = UART_OP_QUERY;
+            }
+            if (uartd_xfer(&cmd, &rsp) != 0) {
+                if (++fails >= 10) { fprintf(stderr, "uartd: 連續 %d 次失敗,放棄\n", fails); break; }
+                continue;
+            }
+            fails = 0;
+            if (have_send && UART_ERR_TXBUSY == rsp.status) {
+                struct timespec d = { .tv_sec = 0, .tv_nsec = 50 * 1000000L };
+                nanosleep(&d, NULL);
+                if (uartd_xfer(&cmd, &rsp) != 0) continue;      /* 一次重試 */
+            }
+            if (rsp.rx_len) {                    /* 累積 RX(滿了丟最舊)*/
+                int n = (int)rsp.rx_len;
+                if (n > (int)sizeof(rx_acc)) n = sizeof(rx_acc);
+                if (rx_len + n > (int)sizeof(rx_acc)) {
+                    int drop = rx_len + n - (int)sizeof(rx_acc);
+                    memmove(rx_acc, rx_acc + drop, (size_t)(rx_len - drop));
+                    rx_len -= drop;
+                }
+                memcpy(rx_acc + rx_len, rsp.data, (size_t)n);
+                rx_len += n;
+            }
+            {
+                char tmp[256];
+                snprintf(tmp, sizeof(tmp), "%s.tmp", g_uartd_path);
+                FILE *f = fopen(tmp, "w");
+                if (f) {
+                    fprintf(f, "{\"seq\":%llu,\"status\":%d,\"tx_total\":%u,"
+                               "\"rx_total\":%u,\"rx_dropped\":%u,\"rx_text\":\"",
+                            ++seq, rsp.status, rsp.tx_total, rsp.rx_total, rsp.rx_dropped);
+                    uartd_json_escape(f, rx_acc, rx_len);
+                    fputs("\"}\n", f);
+                    fclose(f);
+                    rename(tmp, g_uartd_path);
+                }
+            }
+        }
+        printf("uartd 收攤,seq 到 %llu\n", seq);
         goto shutdown;
     }
 
