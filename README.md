@@ -25,11 +25,11 @@ Verified on: RZ/V2H RDK (WS125-V2HRDKREFZ) and RZ/V2H EVK ver1, Linux
 | `docs/05-blackbox.md` | The black box: field map, reader, and acceptance criteria |
 | `docs/07-pwm-web-demo.md` | Write your own firmware: web knobs -> rpmsg -> GPT hardware PWM |
 | `docs/08-evk-pmod-pinout.md` | EVK Pmod headers: which pin is physically where (CN1/CN2/CN3/CN6) |
-| `docs/09-percore-migration.md` | CR8_0 moved to its per-core carveout — the CM33 region is free now |
-| `docs/10-core1-bringup.md` | Both R8 cores running side by side — layout table + the three mines |
-| `docs/11-cm33-bringup.md` | CM33 up too — all three cores live; the carveout-wipe mine |
-| `docs/12-core1-uart-demo.md` | core1 UART terminal on the web page; mine #5 (no single-core R8 restart) |
-| `ROADMAP.md` | 2.0: flight-grade core management — parking-stub restart, crashed-core recovery |
+| `docs/09-memory-map.md` | Three-core memory map: who owns which addresses, UIO names, layout rules |
+| `docs/10-second-r8-core.md` | Running the second R8 core: start/stop rules and the core1 build checklist |
+| `docs/11-cm33.md` | Running the CM33: start order, firmware swap, CM33 black box |
+| `docs/12-uart-demo.md` | core1 UART demo: web terminal, wiring, protocol |
+| `ROADMAP.md` | Planned work: single-core hot-restart, crashed-core recovery, kernel fixes |
 | `blackbox/` | `r8_blackbox.c/.h` (firmware side) + `bb.py` (Linux-side reader) |
 | `tools/` | `start-cr8.sh`, `deploy-cr8.sh`, `patch-elf-phdr.py`, UIO bind service |
 | `dts/` | EVK DTB with the CR8 handover applied, ready to install |
