@@ -1,5 +1,7 @@
 # RZ/V2H Cortex-R8 DevKit
 
+> Maintained by the **Power Conversion Technology Research Center**, Department of Electrical Engineering, National Formosa University — <https://nfuee0102.com> ｜ 國立虎尾科技大學 電機工程系 電能轉換技術研究中心
+
 Everything needed to bring up, deploy to, talk to, and **prove the health of** the
 Cortex-R8 real-time core on Renesas RZ/V2H boards (RDK and EVK), running FreeRTOS
 alongside Linux on the CA55.
